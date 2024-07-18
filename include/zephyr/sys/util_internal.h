@@ -137,8 +137,8 @@
 	_61, _62, N, ...) N
 
 /* Used by MACRO_MAP_CAT */
+/* To make sure it works also for 2 arguments in total */
 #define MACRO_MAP_CAT_(...)						\
-	/* To make sure it works also for 2 arguments in total */	\
 	MACRO_MAP_CAT_N(NUM_VA_ARGS_LESS_1(__VA_ARGS__), __VA_ARGS__)
 #define MACRO_MAP_CAT_N_(N, ...) UTIL_CAT(MACRO_MC_, N)(__VA_ARGS__,)
 #define MACRO_MC_0(...)
