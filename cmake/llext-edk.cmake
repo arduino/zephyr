@@ -190,8 +190,7 @@ file(APPEND ${llext_edk}/cmake.cflags "\n\nset(LLEXT_GENERATED_IMACROS_CFLAGS ${
 file(ARCHIVE_CREATE
     OUTPUT ${llext_edk_file}
     PATHS ${llext_edk}
-    FORMAT gnutar
-    COMPRESSION XZ
+    COMPRESSION Zstd
 )
 
 file(REMOVE_RECURSE ${llext_edk})
