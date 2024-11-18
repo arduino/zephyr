@@ -308,7 +308,7 @@ def write_ranges(node: edtlib.Node) -> None:
             idx_macro = f"{path_id}_RANGES_IDX_{i}_VAL_CHILD_BUS_FLAGS"
             idx_value = range.child_bus_addr >> ((range.child_bus_cells - 1) * 32)
             idx_vals.append((idx_macro,
-                             f"{idx_value} /* {hex(idx_value)} */"))
+                             f"{idx_value}"))
         if range.child_bus_addr is not None:
             idx_macro = f"{path_id}_RANGES_IDX_{i}_VAL_CHILD_BUS_ADDRESS"
             if "pcie" in node.buses:
@@ -316,15 +316,15 @@ def write_ranges(node: edtlib.Node) -> None:
             else:
                 idx_value = range.child_bus_addr
             idx_vals.append((idx_macro,
-                             f"{idx_value} /* {hex(idx_value)} */"))
+                             f"{idx_value}"))
         if range.parent_bus_addr is not None:
             idx_macro = f"{path_id}_RANGES_IDX_{i}_VAL_PARENT_BUS_ADDRESS"
             idx_vals.append((idx_macro,
-                             f"{range.parent_bus_addr} /* {hex(range.parent_bus_addr)} */"))
+                             f"{range.parent_bus_addr}"))
         if range.length is not None:
             idx_macro = f"{path_id}_RANGES_IDX_{i}_VAL_LENGTH"
             idx_vals.append((idx_macro,
-                             f"{range.length} /* {hex(range.length)} */"))
+                             f"{range.length}"))
 
     for macro, val in idx_vals:
         out_dt_define(macro, val)
@@ -350,7 +350,7 @@ def write_regs(node: edtlib.Node) -> None:
         if reg.addr is not None:
             idx_macro = f"{path_id}_REG_IDX_{i}_VAL_ADDRESS"
             idx_vals.append((idx_macro,
-                             f"{reg.addr} /* {hex(reg.addr)} */"))
+                             f"{reg.addr}"))
             if reg.name:
                 name_vals.append((f"{path_id}_REG_NAME_{reg.name}_EXISTS", 1))
                 name_macro = f"{path_id}_REG_NAME_{reg.name}_VAL_ADDRESS"
@@ -359,7 +359,7 @@ def write_regs(node: edtlib.Node) -> None:
         if reg.size is not None:
             idx_macro = f"{path_id}_REG_IDX_{i}_VAL_SIZE"
             idx_vals.append((idx_macro,
-                             f"{reg.size} /* {hex(reg.size)} */"))
+                             f"{reg.size}"))
             if reg.name:
                 name_macro = f"{path_id}_REG_NAME_{reg.name}_VAL_SIZE"
                 name_vals.append((name_macro, f"DT_{idx_macro}"))
@@ -704,7 +704,7 @@ def write_dep_info(node: edtlib.Node) -> None:
             # Sort the list by dependency ordinal for predictability.
             sorted_list = sorted(dep_list, key=lambda node: node.dep_ordinal)
             return "\\\n\t" + \
-                " \\\n\t".join(f"{n.dep_ordinal}, /* {n.path} */"
+                " \\\n\t".join(f"{n.dep_ordinal}, "
                                for n in sorted_list)
         else:
             return "/* nothing */"
@@ -737,7 +737,7 @@ def prop2value(prop: edtlib.Property) -> edtlib.PropertyValType:
         return 1 if prop.val else 0
 
     if prop.type in ["array", "uint8-array"]:
-        return list2init(f"{val} /* {hex(val)} */" for val in prop.val)
+        return list2init(f"{val}" for val in prop.val)
 
     if prop.type == "string-array":
         return list2init(quote_str(val) for val in prop.val)
