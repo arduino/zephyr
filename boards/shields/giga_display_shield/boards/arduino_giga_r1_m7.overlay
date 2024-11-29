@@ -47,13 +47,13 @@
 		hsync-active = <1>;
 		vsync-active = <1>;
 		de-active = <1>;
-		pixelclk-active = <0>;
-		hsync-len = <24>;
-		vsync-len = <4>;
-		hback-porch = <20>;
+		pixelclk-active = <1>;
+		hback-porch = <2>;
+		hsync-len = <2>;
+		hfront-porch = <2>;
 		vback-porch = <60>;
-		hfront-porch = <30>;
-		vfront-porch = <20>;
+		vsync-len = <2>;
+		vfront-porch = <10>;
 	};
 };
 
@@ -62,10 +62,10 @@
 	status = "okay";
 	clocks = <&clk_hse>;
 	div-m = <16>;
-	mul-n = <152>;
+	mul-n = <110>;
 	div-p = <2>;
 	div-q = <2>;
-	div-r = <4>; /* 38 MHz */
+	div-r = <4>; /* 27.5 MHz */
 };
 
 &zephyr_mipi_dsi {

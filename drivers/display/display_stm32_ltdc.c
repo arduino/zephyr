@@ -300,6 +300,8 @@ static int stm32_ltdc_init(const struct device *dev)
 	const struct display_stm32_ltdc_config *config = dev->config;
 	struct display_stm32_ltdc_data *data = dev->data;
 
+	LOG_ERR("stm32_ltdc_init");
+
 	/* Configure and set display on/off GPIO */
 	if (config->disp_on_gpio.port) {
 		err = gpio_pin_configure_dt(&config->disp_on_gpio, GPIO_OUTPUT_ACTIVE);

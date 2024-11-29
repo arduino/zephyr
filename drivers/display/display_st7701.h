@@ -39,26 +39,6 @@
 
 #define ST7701_CMD_ID1            0xDA
 
-/**
- * @name Display timings
- * @{
- */
-
-/** Horizontal low pulse width */
-#define ST7701_HSYNC 2U
-/** Horizontal front porch. */
-#define ST7701_HFP 34U
-/** Horizontal back porch. */
-#define ST7701_HBP 34U
-/** Vertical low pulse width. */
-#define ST7701_VSYNC 1U
-/** Vertical front porch. */
-#define ST7701_VFP 16U
-/** Vertical back porch. */
-#define ST7701_VBP 15U
-
-/** @} */
-
 
 /**
  * @name MIPI DCS Write Control Display fields.

@@ -410,13 +410,13 @@ static int st7701_init(const struct device *dev)
 	mdev.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST | MIPI_DSI_MODE_LPM;
 
 	mdev.timings.hactive = cfg->width;
-	mdev.timings.hbp = 30;
+	mdev.timings.hbp = 20;
+	mdev.timings.hsync = 20;
 	mdev.timings.hfp = 20;
-	mdev.timings.hsync = 24;
 	mdev.timings.vactive = cfg->height;
-	mdev.timings.vbp = 50;
-	mdev.timings.vfp = 20;
-	mdev.timings.vsync = 4;
+	mdev.timings.vbp = 60;
+	mdev.timings.vsync = 2;
+	mdev.timings.vfp = 10;
 
 	ret = mipi_dsi_attach(cfg->mipi_dsi, cfg->channel, &mdev);
 	if (ret < 0) {
