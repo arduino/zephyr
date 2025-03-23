@@ -5911,5 +5911,6 @@
 #include <zephyr/devicetree/wuc.h>
 #include <zephyr/devicetree/mapped-partition.h>
 #include <zephyr/devicetree/partitions.h>
+#include <zephyr/devicetree/map.h>
 
 #endif /* ZEPHYR_INCLUDE_DEVICETREE_H_ */
