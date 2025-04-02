@@ -7,6 +7,7 @@
 #include <zephyr/init.h>
 #include <stm32h7xx_ll_bus.h>
 #include <stm32h7xx_ll_gpio.h>
+#include "../../../drivers/dp/swdp_ll_pin.h"
 
 static int board_gpio_init(void)
 {
@@ -37,6 +38,8 @@ static int board_gpio_init(void)
 	LL_GPIO_SetPinSpeed(GPIOJ, LL_GPIO_PIN_15, LL_GPIO_SPEED_FREQ_LOW);
 	LL_GPIO_SetPinOutputType(GPIOJ, LL_GPIO_PIN_15, LL_GPIO_OUTPUT_PUSHPULL);
 	LL_GPIO_SetPinPull(GPIOJ, LL_GPIO_PIN_15, LL_GPIO_PULL_UP);
+	LL_GPIO_ResetOutputPin(GPIOJ, LL_GPIO_PIN_15);
+	pin_delay_asm(100);
 	LL_GPIO_SetOutputPin(GPIOJ, LL_GPIO_PIN_15);
 #endif
 
