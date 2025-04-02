@@ -126,6 +126,11 @@ static int stm32_ltdc_set_pixel_format(const struct device *dev,
 		data->current_pixel_format = PIXEL_FORMAT_ARGB_8888;
 		data->current_pixel_size = 4u;
 		break;
+	case PIXEL_FORMAT_L_8:
+		err = HAL_LTDC_SetPixelFormat(&data->hltdc, LTDC_PIXEL_FORMAT_L8, 0);
+		data->current_pixel_format = PIXEL_FORMAT_L_8;
+		data->current_pixel_size = 1u;
+		break;
 	default:
 		return -ENOTSUP;
 	}
@@ -162,7 +167,8 @@ static void stm32_ltdc_get_capabilities(const struct device *dev,
 				     data->hltdc.LayerCfg[0].WindowY0;
 	capabilities->supported_pixel_formats = PIXEL_FORMAT_ARGB_8888 |
 					PIXEL_FORMAT_RGB_888 |
-					PIXEL_FORMAT_RGB_565;
+					PIXEL_FORMAT_BGR_565 |
+					PIXEL_FORMAT_L_8;
 	capabilities->screen_info = 0;
 
 	capabilities->current_pixel_format = data->current_pixel_format;
