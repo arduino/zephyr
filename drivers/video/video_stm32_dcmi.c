@@ -162,6 +162,21 @@ static int stm32_dma_init(const struct device *dev)
 
 	/*** Configure the DMA ***/
 	/* Set the parameters to be configured */
+#if defined(GPDMA1) // GPDMA
+	hdma.Init.Request		= GPDMA1_REQUEST_DCMI;
+	hdma.Init.BlkHWRequest		= DMA_BREQ_SINGLE_BURST;
+	hdma.Init.Direction		= DMA_PERIPH_TO_MEMORY;
+	hdma.Init.SrcInc		= DMA_SINC_FIXED;
+	hdma.Init.DestInc		= DMA_DINC_INCREMENTED;
+	hdma.Init.SrcDataWidth		= DMA_SRC_DATAWIDTH_WORD;
+	hdma.Init.DestDataWidth		= DMA_DEST_DATAWIDTH_WORD;
+	hdma.Init.Priority		= DMA_HIGH_PRIORITY;
+	hdma.Init.SrcBurstLength	= 1;
+	hdma.Init.DestBurstLength	= 1;
+	hdma.Init.TransferAllocatedPort = DMA_SRC_ALLOCATED_PORT0 | DMA_DEST_ALLOCATED_PORT0;
+	hdma.Init.TransferEventMode	= DMA_TCEM_BLOCK_TRANSFER;
+	hdma.Init.Mode			= DMA_NORMAL;
+#else // standard DMA
 	hdma.Init.Request		= DMA_REQUEST_DCMI;
 	hdma.Init.Direction		= DMA_PERIPH_TO_MEMORY;
 	hdma.Init.PeriphInc		= DMA_PINC_DISABLE;
@@ -173,6 +188,7 @@ static int stm32_dma_init(const struct device *dev)
 	hdma.Instance			= STM32_DMA_GET_INSTANCE(dma->reg, dma->channel);
 #if defined(CONFIG_SOC_SERIES_STM32F7X) || defined(CONFIG_SOC_SERIES_STM32H7X)
 	hdma.Init.FIFOMode		= DMA_FIFOMODE_DISABLE;
+#endif
 #endif
 
 	/* Initialize DMA HAL */
