@@ -10,3 +10,4 @@ string
 	default "nrf5340bsim/nrf5340/cpunet" if $(BOARD) = "nrf5340bsim"
 	default "nrf54l15dk/nrf54l15/cpuflpr" if $(BOARD) = "nrf54l15dk"
 	default "stm32h747i_disco/stm32h747xx/m4" if $(BOARD) = "stm32h747i_disco"
+	default "arduino_giga_r1/stm32h747xx/m4" if $(BOARD) = "arduino_giga_r1"
