@@ -72,6 +72,8 @@ extern const int brcm_patch_ram_length;
 /* One command at a time, sized for the longest one: a block of the firmware image */
 BT_HCI_PKT_CMD_DEFINE_STATIC(vnd_cmd, UINT8_MAX);
 
+#if CONFIG_BT_HCI_HOST
+
 static int bt_hci_uart_set_baudrate(const struct device *bt_uart_dev, uint32_t baudrate)
 {
 	struct uart_config uart_cfg;
@@ -189,6 +191,7 @@ static int bt_firmware_download(struct bt_hci_lockstep *ls, const uint8_t *firmw
 	LOG_DBG("Fw downloading complete");
 	return 0;
 }
+#endif
 
 static int bt_update_sco_route(struct bt_hci_lockstep *ls)
 {
@@ -244,6 +247,8 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 
 	/* BT settling time after power on */
 	(void)k_msleep(BT_POWER_ON_SETTLING_TIME_MS);
+
+#if CONFIG_BT_HCI_HOST
 
 	/* Newer controllers like CYW555xx require Download mode for firmware upload.
 	 * In Download mode, the baudrate cannot be changed without the Minidriver.
@@ -331,5 +336,10 @@ int bt_h4_vnd_open(const struct device *dev, const struct device *uart, struct b
 			return err;
 		}
 	}
+
+#else
+	(void)k_msleep(BT_STABILIZATION_DELAY_MS);
+#endif
+
 	return 0;
 }
