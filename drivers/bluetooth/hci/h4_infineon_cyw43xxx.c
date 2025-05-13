@@ -66,6 +66,8 @@ enum {
  */
 int bt_h4_vnd_setup(const struct device *dev);
 
+#if CONFIG_BT_HCI_HOST
+
 static int bt_hci_uart_set_baudrate(const struct device *bt_uart_dev, uint32_t baudrate)
 {
 	struct uart_config uart_cfg;
@@ -204,6 +206,7 @@ static int bt_firmware_download(const uint8_t *firmware_image, uint32_t size)
 	LOG_DBG("Fw downloading complete");
 	return 0;
 }
+#endif
 
 int bt_h4_vnd_setup(const struct device *dev)
 {
@@ -259,6 +262,7 @@ int bt_h4_vnd_setup(const struct device *dev)
 		}
 	}
 
+#if CONFIG_BT_HCI_HOST
 	/* Send HCI_RESET */
 	err = bt_hci_cmd_send_sync(BT_HCI_OP_RESET, NULL, NULL);
 	if (err) {
@@ -306,6 +310,9 @@ int bt_h4_vnd_setup(const struct device *dev)
 			return err;
 		}
 	}
+#else
+	(void)k_msleep(BT_STABILIZATION_DELAY_MS);
+#endif
 
 	return 0;
 }
