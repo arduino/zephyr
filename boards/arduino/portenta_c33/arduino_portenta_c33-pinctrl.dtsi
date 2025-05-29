@@ -54,6 +54,15 @@
 		};
 	};
 
+	sci3_i2c_default: sci3_i2c_default {
+		group1 {
+			/* sda scl */
+			psels = <RA_PSEL(RA_PSEL_SCI_3, 3, 9)>,
+				<RA_PSEL(RA_PSEL_SCI_3, 3, 10)>;
+			bias-pull-up;
+		};
+	};
+
 	iic1_default: iic1_default {
 		group1 {
 			/* SCL1 SDA1 */
