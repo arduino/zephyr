@@ -40,6 +40,11 @@ config USE_RA_FSP_SCI_B_I2C
 	help
 	  Enable RA FSP SCI-B I2C driver
 
+config USE_RA_FSP_SCI_I2C
+	bool
+	help
+	  Enable RA FSP SCI I2C driver
+
 config USE_RA_FSP_SCI_UART
 	bool
 	help
