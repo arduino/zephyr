@@ -68,6 +68,10 @@ void soc_early_init_hook(void)
 		NVIC->ITNS[i] = 0;
 	}
 
+	for (int i = 0; i < BSP_ICU_VECTOR_MAX_ENTRIES; i++) {
+		R_ICU->IELSR[i] = 0;
+	}
+
 	/* Enable protection using PRCR register. */
 	R_BSP_RegisterProtectEnable(BSP_REG_PROTECT_SAR);
 #endif
