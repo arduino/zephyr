@@ -107,6 +107,82 @@
 	status = "disabled";
 };
 
+&qspi0 {
+	pinctrl-0 = <&qspi_default>;
+	pinctrl-names = "default";
+	status = "okay";
+	at25sf128a: qspi-nor-flash@60000000 {
+		compatible = "renesas,ra-qspi-nor";
+		reg = <0x60000000 DT_SIZE_M(16)>;
+		status = "okay";
+		write-block-size = <1>;
+		erase-block-size = <4096>;
+	};
+};
+
+&sci3 {
+	pinctrl-0 = <&sci3_i2c_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	i2c3: i2c {
+		compatible = "renesas,ra-i2c-sci";
+		channel = <3>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clock-frequency = <DT_FREQ_K(400)>;
+		status = "okay";
+
+		pf1550: pmic@8 {
+			status = "okay";
+			reg = <0x8>;
+			compatible = "nxp,pf1550";
+
+			pmic_regulators: regulators {
+				status = "okay";
+				compatible = "nxp,pf1550-regulator";
+				pf1550_sw1: BUCK1 {
+					regulator-init-microvolt = <3300000>;
+					regulator-boot-on;
+				};
+				pf1550_sw2: BUCK2 {
+					regulator-init-microvolt = <3300000>;
+					regulator-boot-on;
+				};
+				pf1550_sw3: BUCK3 {
+					regulator-init-microvolt = <3300000>;
+					regulator-init-microamp = <2000000>;
+					regulator-boot-on;
+				};
+				pf1550_ldo1: LDO1 {
+					regulator-init-microvolt = <3300000>;
+					regulator-boot-on;
+				};
+				pf1550_ldo2: LDO2 {
+					regulator-init-microvolt = <3300000>;
+					regulator-boot-on;
+				};
+				pf1550_ldo3: LDO3 {
+					regulator-init-microvolt = <1200000>;
+					regulator-boot-on;
+				};
+			};
+
+			pmic_charger: charger {
+				status = "okay";
+				compatible = "nxp,pf1550-charger";
+				constant-charge-current-max-microamp = <100000>;
+				constant-charge-voltage-max-microvolt = <4200000>;
+				pf1550,int-gpios = <&ioport9 6 0>;
+				pf1550,led-behaviour = "on-in-charging-flash-in-fault";
+				pf1550,system-voltage-min-threshold-microvolt = <3500000>;
+				pf1550,thermistor-monitoring-mode = "thermistor";
+				pf1550,vbus-current-limit-microamp = <1500000>;
+			};
+		};
+	};
+};
+
 &iic0 {
 	status = "okay";
 	#address-cells = <1>;
