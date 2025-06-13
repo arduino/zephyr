@@ -15,6 +15,7 @@
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/usb/ameba_usb_ep.h>
 
 / {
 	cpus {
@@ -254,6 +255,30 @@
 			clocks = <&rcc AMEBA_RTC_CLK>;
 			interrupts = <5 0>;
 			alarms-count = <1>;
+			status = "disabled";
+		};
+
+		usb: usb@40140000 {
+			compatible = "realtek,ameba-usb";
+			reg = <0x40140000 0x20000>;
+			interrupts = <68 0>;
+			status = "disabled";
+		};
+
+		zephyr_udc0: usbd@40150000 {
+			compatible = "realtek,ameba-udc";
+			reg = <0x40150000 0x200>;
+			interrupts = <68 0>;
+			in-ep-cnt = <5>;
+			out-ep-cnt = <5>;
+			udc-max-speed = <AMEBA_USB_BUS_SPEED_FS>;
+
+			/* epnum in/out type mps */
+			ep-ranges =
+				<AMEBA_USB_EP(1,AMEBA_USB_EP_DIR_IN, AMEBA_USB_EP_TYPE_NON_CTRL,64)>,
+				<AMEBA_USB_EP(2,AMEBA_USB_EP_DIR_OUT,AMEBA_USB_EP_TYPE_NON_CTRL,64)>,
+				<AMEBA_USB_EP(3,AMEBA_USB_EP_DIR_IN, AMEBA_USB_EP_TYPE_NON_CTRL,64)>,
+				<AMEBA_USB_EP(4,AMEBA_USB_EP_DIR_OUT,AMEBA_USB_EP_TYPE_NON_CTRL,64)>;
 			status = "disabled";
 		};
 	};
