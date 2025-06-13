@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: babblesim
       url-base: https://github.com/BabbleSim
+    - name: realtek_ameba_iot
+      url-base: https://github.com/Ameba-AIoT
 
   group-filter: [-babblesim, -optional]
 
@@ -224,6 +226,11 @@ manifest:
       path: modules/hal/quicklogic
       groups:
         - hal
+    - name: hal_realtek
+      remote: realtek_ameba_iot
+      repo-path: nuwa_hal_realtek
+      path: modules/hal/realtek
+      revision: b1e1bc4fb4e721f8afb6e46708b86c2a7562da39
     - name: hal_renesas
       path: modules/hal/renesas
       revision: pull/105/head
