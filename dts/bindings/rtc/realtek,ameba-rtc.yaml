@@ -1,0 +1,16 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+description: AMEBA RTC
+
+compatible: "realtek,ameba-rtc"
+
+include: [rtc.yaml, rtc-device.yaml]
+
+properties:
+  reg:
+    required: true
+  alarms-count:
+    enum:
+      - 0
+      - 1

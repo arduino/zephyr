@@ -1,0 +1,19 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+config DMA_AMEBA
+	bool "AMEBA General Purpose DMA driver"
+	depends on DT_HAS_REALTEK_AMEBA_GDMA_ENABLED
+	default y
+	help
+	  General Purpose DMA for AMEBA series.
+
+if DMA_AMEBA
+
+config DMA_AMEBA_LLI
+	bool "AMEBA Linked List Mode"
+	default n
+	help
+	  This option supports data block in the form of linked lists.
+
+endif # DMA_AMEBA

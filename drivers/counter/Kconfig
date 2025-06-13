@@ -28,6 +28,8 @@ source "subsys/logging/Kconfig.template.log_config"
 
 source "drivers/counter/Kconfig.ambiq"
 
+source "drivers/counter/Kconfig.ameba_tmr"
+
 source "drivers/counter/Kconfig.gecko"
 
 source "drivers/counter/Kconfig.tmr_cmsdk_apb"

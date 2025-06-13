@@ -1,0 +1,13 @@
+# AMEBA USB Device controller Driver Configuration
+
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+config UDC_AMEBA
+	bool "Ameba USB device controller driver"
+	depends on DT_HAS_REALTEK_AMEBA_UDC_ENABLED
+	select REALTEK_AMEBA_ZEPHYR_UDC
+	select REALTEK_AMEBA_USB_DEVICE
+	default y
+	help
+	  Ameba USB device controller driver.

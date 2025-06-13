@@ -1,0 +1,17 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Realtek Ameba USB OTG controller
+
+compatible: "realtek,ameba-usb"
+
+include: [base.yaml]
+
+bus: usb
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true

@@ -1,0 +1,106 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+description: AMEBA I2S controller
+
+compatible: "realtek,ameba-i2s"
+
+include: [i2s-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  dmas:
+    required: true
+
+  dma-names:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  index:
+    type: int
+    description: Represent the different i2s interfaces.
+    enum:
+      - 0 # i2s0
+      - 1 # i2s1
+
+  mclk-multiple:
+    type: int
+    description: The multiple relationship between CPU clock and mclk, we often use 128 and 256.
+    enum:
+      - 64
+      - 128
+      - 256
+
+  mclk-fixed-max:
+    type: int
+    description: Whether to use the max fixed mclk.
+    enum:
+      - 20000000
+      - 0
+
+  tdmmode:
+    type: int
+    description: channel number in I2S tdm mode.
+    enum:
+      - 0 # 2channel
+      - 1 # 4channel
+      - 2 # 6channel
+      - 3 # 8channel
+
+  fifo-num:
+    type: int
+    description: I2S fifo number
+    enum:
+      - 0 # 2channel
+      - 1 # 4channel
+      - 2 # 6channel
+      - 3 # 8channel
+
+  multiio:
+    type: int
+    description: Whether to use I2S multi-io mode.
+    enum:
+      - 0
+      - 1
+
+  chn-len:
+    type: int
+    description: Select channel length.
+    enum:
+      - 0 # 16bit
+      - 1 # 20bit
+      - 2 # 24bit
+      - 4 # 32bit
+
+  mono-stereo:
+    type: int
+    description: Whether to use I2S mono mode.
+    enum:
+      - 0
+      - 1
+
+  clock-mode:
+    type: int
+    description: Select SPORT clock, use XTAL40M or I2S PLL
+    enum:
+      - 40000000
+      - 98304000
+      - 45158400
+
+  pll-tune:
+    type: int
+    description: PLL clock tune.
+    enum:
+      - 0 # auto
+      - 1 # faster
+      - 2 # slower

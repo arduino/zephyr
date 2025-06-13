@@ -1,0 +1,156 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <realtek/amebadplus/amebadplus.dtsi>
+#include "rtl872xda_evb-pinctrl.dtsi"
+
+/ {
+	model = "RealTek AmebaDplus RTL872XDA EVB";
+	compatible = "realtek,rtl872xda_evb";
+
+	chosen {
+		zephyr,console = &loguart;
+		zephyr,shell-uart = &loguart;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,entropy = &trng;
+		zephyr,flash-controller = &spic;
+	};
+
+	aliases {
+		i2c-0 = &i2c0;
+		led-strip =&ledc;
+		rtc = &rtc;
+		sw0 = &button0;
+		watchdog0 = &wdg;
+		pwm-0 = &pwm0;
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = < &gpioa 12 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+			label = "User button";
+			zephyr,code = <INPUT_KEY_4>;
+		};
+	};
+
+};
+
+/* 4MB flash */
+&flash0 {
+	reg = <0x0e000020 DT_SIZE_M(4)>;
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Reserve 80kB for the bootloader */
+		boot_partition: partition@0 {
+			label = "bootloader";
+			reg = <0x00000000 0x00014000>;
+			read-only;
+		};
+
+		/* Reserve 1968kB for the application in slot 0 */
+		slot0_partition: partition@14000 {
+			label = "image-0";
+			reg = <0x00014000 0x001EC000>;
+		};
+
+		storage_partition: partition@250000 {
+			label = "storage";
+			reg = <0x00250000 0x00006000>;
+		};
+	};
+};
+
+&uart0 {
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&uart1 {
+	pinctrl-0 = <&uart1_default>;
+	pinctrl-names = "default";
+};
+
+&spi1 {
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	rtk,spi-default-cs = <0>;
+	status = "okay";
+};
+
+&i2c0 {
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&i2s0 {
+	pinctrl-0 = <&i2s0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&i2s1 {
+	pinctrl-0 = <&i2s1_default>;
+	pinctrl-names = "default";
+};
+
+&codec {
+	pinctrl-0 = <&dmic_default>;
+	pinctrl-names = "default";
+	i2s-index = <0>;
+	status = "okay";
+};
+
+&adc {
+	pinctrl-0 = <&adc_in4_pb15 &adc_in5_pb14>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&ctc {
+	pinctrl-0 = <&adc_in0_pb19 &adc_in1_pb18 &adc_in2_pb17 &adc_in3_pb16>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&pwm0 {
+	pinctrl-0 = <&pwm0_default>;
+	pinctrl-names = "default";
+	prescale = <255>;
+	status = "okay";
+};
+
+&ledc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ledc_default>;
+	status = "okay";
+};
+
+&wdg {
+	status = "okay";
+};
+
+&trng {
+	status = "okay";
+};
+
+&timer0 {
+	status = "okay";
+};
+
+&gpioa {
+	status = "okay";
+};
+

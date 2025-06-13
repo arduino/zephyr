@@ -1,0 +1,9 @@
+family:
+- name: realtek_ameba
+  series:
+  - name: amebadplus
+    socs:
+    - name: amebadplus
+  - name: amebad
+    socs:
+    - name: amebad

@@ -1,0 +1,457 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <freq.h>
+#include <arm/armv8.1-m.dtsi>
+
+#include <zephyr/dt-bindings/clock/amebadplus_clock.h>
+#include <zephyr/dt-bindings/dma/ameba_dma.h>
+#include <zephyr/dt-bindings/led/led.h>
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
+#include <zephyr/dt-bindings/usb/ameba_usb_ep.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-m55";
+			reg = <0>;
+			d-cache-line-size = <32>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+		};
+	};
+
+	clocks {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		clk_sys: clk_sys {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <DT_FREQ_M(260)>;
+		};
+
+		rcc: rcc@41008000 {
+			compatible = "realtek,ameba-rcc";
+			#clock-cells = <1>;
+			reg = <0x41008000 0x400>;
+		};
+	};
+
+	soc {
+		sram0: memory@20010020 {
+			compatible = "mmio-sram";
+			reg = <0x20010020 0x00030000>;
+		};
+
+		ram_image2_entry: memory@20004da0 {
+			compatible = "zephyr,memory-region";
+			reg = <0x20004da0 0x20>;
+			zephyr,memory-region = "KM4_IMG2_ENTRY";
+		};
+
+		pinctrl: pinctrl@41008800 {
+			compatible = "realtek,ameba-pinctrl";
+			reg = <0x41008800 0x200>;
+		};
+
+		loguart: serial@4100f000 {
+			compatible = "realtek,ameba-loguart";
+			reg = <0x4100f000 0x100>;
+			clocks = <&rcc AMEBA_LOGUART_CLK>;
+			interrupts = <27 0>;
+			current-speed = <1500000>;
+		};
+
+		uart0: serial@4100c000 {
+			compatible = "realtek,ameba-uart";
+			reg = <0x4100c000 0x60>;
+			clocks = <&rcc AMEBA_UART0_CLK>;
+			interrupts = <24 0>;
+			current-speed = <115200>;
+			status = "disabled";
+		};
+
+		uart1: serial@4100d000 {
+			compatible = "realtek,ameba-uart";
+			reg = <0x4100d000 0x60>;
+			clocks = <&rcc AMEBA_UART1_CLK>;
+			interrupts = <25 0>;
+			current-speed = <115200>;
+			status = "disabled";
+		};
+
+		uart2: serial@4100e000 {
+			compatible = "realtek,ameba-uart";
+			reg = <0x4100e000 0x60>;
+			clocks = <&rcc AMEBA_UART2_CLK>;
+			interrupts = <26 0>;
+			current-speed = <115200>;
+			status = "disabled";
+		};
+
+		spi0: spi@40124000 {
+			compatible = "realtek,ameba-spi";
+			reg = <0x40124000 0x100>;
+			interrupts = <42 0>;
+			clocks = <&rcc AMEBA_SPI0_CLK>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		spi1: spi@40125000 {
+			compatible = "realtek,ameba-spi";
+			reg = <0x40125000 0x100>;
+			interrupts = <43 0>;
+			clocks = <&rcc AMEBA_SPI1_CLK>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c0: i2c0@41108000 {
+			compatible = "realtek,ameba-i2c";
+			reg = <0x41108000 0x100>;
+			interrupts = <30 0>;
+			clocks = <&rcc AMEBA_I2C0_CLK>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			dmas = <&dma 4 22 0>,
+				   <&dma 5 21 0>;
+			dma-names = "rx", "tx";
+			status = "disabled";
+		};
+
+		i2c1: i2c1@4110a000 {
+			compatible = "realtek,ameba-i2c";
+			reg = <0x4110a000 0x100>;
+			interrupts = <31 0>;
+			clocks = <&rcc AMEBA_I2C1_CLK>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			dmas = <&dma 4 24 0>,
+				   <&dma 5 23 0>;
+			dma-names = "rx", "tx";
+			status = "disabled";
+		};
+
+		gpioa: gpio@41010000 {
+			compatible = "realtek,ameba-gpio";
+			reg = <0x41010000 0x400>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupts = <28 0>;
+			status = "disabled";
+		};
+
+		gpiob: gpio@41010400 {
+			compatible = "realtek,ameba-gpio";
+			reg = <0x41010400 0x400>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupts = <29 0>;
+			status = "disabled";
+		};
+
+		timer0: counter@41017000 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017000 0x30>;
+			clocks = <&rcc AMEBA_LTIM0_CLK>;
+			interrupts = <10 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		timer1: counter@41017200 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017200 0x30>;
+			clocks = <&rcc AMEBA_LTIM1_CLK>;
+			interrupts = <11 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		timer2: counter@41017400 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017400 0x30>;
+			clocks = <&rcc AMEBA_LTIM2_CLK>;
+			interrupts = <12 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		timer3: counter@41017600 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017600 0x30>;
+			clocks = <&rcc AMEBA_LTIM3_CLK>;
+			interrupts = <13 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		timer4: counter@41017800 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017800 0x30>;
+			clocks = <&rcc AMEBA_LTIM4_CLK>;
+			interrupts = <14 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		timer5: counter@41017a00 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017a00 0x30>;
+			clocks = <&rcc AMEBA_LTIM5_CLK>;
+			interrupts = <15 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		timer6: counter@41017c00 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017c00 0x30>;
+			clocks = <&rcc AMEBA_LTIM6_CLK>;
+			interrupts = <16 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		timer7: counter@41017e00 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41017e00 0x30>;
+			clocks = <&rcc AMEBA_LTIM7_CLK>;
+			interrupts = <17 0>;
+			clock-frequency = <32768>;
+			status = "disabled";
+		};
+
+		/* The PWM Timer (TIM8) support Input Capture Mode or PWM Mode */
+		pwm0: pwm@41100000 {
+			compatible = "realtek,ameba-pwm";
+			reg = <0x41100000 0x88>;
+			interrupts = <18 0>;
+			clocks = <&rcc AMEBA_PWM0_CLK>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		timer10: counter@41100400 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41100400 0x30>;
+			clocks = <&rcc AMEBA_HTIM0_CLK>;
+			interrupts = <20 0>;
+			clock-frequency = <DT_FREQ_M(1)>;
+			status = "disabled";
+		};
+
+		timer11: counter@41100600 {
+			compatible = "realtek,ameba-counter";
+			reg = <0x41100600 0x30>;
+			clocks = <&rcc AMEBA_HTIM1_CLK>;
+			interrupts = <21 0>;
+			clock-frequency = <DT_FREQ_M(1)>;
+			status = "disabled";
+		};
+
+		ledc: ledc@41008000 {
+			compatible = "realtek,ameba-ledc";
+			reg = <0x41008000 0x100>;
+			interrupts = <62 0>;
+			clocks = <&rcc AMEBA_LEDC_CLK>;
+			dma-mode = <0>;
+			chain-length = <16>;
+			output-rgb-mode = <0>;
+			color-mapping = <LED_COLOR_ID_GREEN
+							LED_COLOR_ID_RED
+							LED_COLOR_ID_BLUE>;
+			wait-data-timeout = <0x3A97>;
+			data-tx-time0h = <0xC>;
+			data-tx-time0l = <0x18>;
+			data-tx-time1h = <0x18>;
+			data-tx-time1l = <0xC>;
+			refresh-time = <0x3FFF>;
+			status = "disabled";
+		};
+
+		i2s0: i2s@4012a000 {
+			compatible = "realtek,ameba-i2s";
+			reg = <0x4012a000 0xa00>;
+			interrupts = <44 0>;
+			clocks = <&rcc AMEBA_SPORT0_CLK>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			dmas = <&dma 1 12 0>, <&dma 0 14 0>, <&dma 2 13 0>, <&dma 3 15 0>;
+			dma-names = "tx", "rx", "tx_ext", "rx_ext";
+			index = <0>;
+			mclk-multiple = <128>;
+			mclk-fixed-max = <0>;
+			multiio = <0>;
+			chn-len = <4>;
+			mono-stereo = <0>;
+			clock-mode = <40000000>;
+			pll-tune = <0>;
+			status = "disabled";
+		};
+
+		i2s1: i2s@4012b000 {
+			compatible = "realtek,ameba-i2s";
+			reg = <0x4012b000 0xa00>;
+			interrupts = <45 0>;
+			clocks = <&rcc AMEBA_SPORT1_CLK>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* dmas = <&dma0 7>; */
+			/* dma-names = "tx"; */
+			index = <1>;
+			mclk-multiple = <128>;
+			mclk-fixed-max = <0>;
+			multiio = <0>;
+			chn-len = <4>;
+			mono-stereo = <0>;
+			clock-mode = <40000000>;
+			pll-tune = <0>;
+			status = "disabled";
+		};
+
+		codec: codec@41106000 {
+			compatible = "realtek,ameba-codec";
+			reg = <0x41106000 0x830>;
+			clocks = <&rcc AMEBA_AC_CLK>;
+			status = "disabled";
+		};
+
+		rtc: rtc@41008a00 {
+			compatible = "realtek,ameba-rtc";
+			reg = <0x41008a00 0x30>;
+			clocks = <&rcc AMEBA_RTC_CLK>;
+			interrupts = <46 0>;
+			alarms-count = <1>;
+			status = "disabled";
+		};
+
+		trng: trng@41008200 {
+			compatible = "realtek,ameba-trng";
+			reg = <0x41008200 0x100>;
+			clocks = <&rcc AMEBA_TRNG_CLK>;
+			status = "disabled";
+		};
+
+		usb: usb@40140000 {
+			compatible = "realtek,ameba-usb";
+			reg = <0x40140000 0x20000>;
+			interrupts = <68 0>;
+			status = "disabled";
+		};
+
+		zephyr_udc0: usbd@40150000 {
+			compatible = "realtek,ameba-udc";
+			reg = <0x40150000 0x200>;
+			interrupts = <68 0>;
+			in-ep-cnt = <5>;
+			out-ep-cnt = <5>;
+			udc-max-speed = <AMEBA_USB_BUS_SPEED_FS>;
+
+			/* epnum in/out type mps */
+			ep-ranges =
+				<AMEBA_USB_EP(1,AMEBA_USB_EP_DIR_IN, AMEBA_USB_EP_TYPE_NON_CTRL,64)>,
+				<AMEBA_USB_EP(2,AMEBA_USB_EP_DIR_OUT,AMEBA_USB_EP_TYPE_NON_CTRL,64)>,
+				<AMEBA_USB_EP(3,AMEBA_USB_EP_DIR_IN, AMEBA_USB_EP_TYPE_NON_CTRL,64)>,
+				<AMEBA_USB_EP(4,AMEBA_USB_EP_DIR_OUT,AMEBA_USB_EP_TYPE_NON_CTRL,64)>;
+			status = "disabled";
+		};
+
+		cryp: cryp@40100000 {
+			compatible = "realtek,ameba-crypto";
+			reg = <0x40100000 0x1020>;
+			clocks = <&rcc AMEBA_AES_CLK>;
+			status = "disabled";
+		};
+
+		/* wdg2 - km4_ns */
+		wdg: watchdog@41008d80 {
+			compatible = "realtek,ameba-watchdog";
+			reg = <0x41008d80 0x20>;
+			interrupts = <65 0>;
+			early_int_cnt = <500>;
+			status = "disabled";
+		};
+
+		spic: flash-controller@40128000 {
+			compatible = "realtek,ameba-flash-controller";
+			reg = <0x40128000 0x200>;
+
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			flash0: flash@e000020 {
+				compatible = "soc-nv-flash";
+				erase-block-size = <DT_SIZE_K(4)>;
+				write-block-size = <4>;
+				/* Flash size is specified in board dts */
+			};
+		};
+
+		dma: dma@40110000 {
+			compatible = "realtek,ameba-gdma";
+			reg = <0x40110000 0x3C0>;
+			clocks = <&rcc AMEBA_DMAC_CLK>;
+			interrupts = <33 0>, <34 0>, <35 0>, <36 0>, <37 0>, <38 0>, <39 0>, <40 0>;
+			interrupt-names = "CH0", "CH1", "CH2", "CH3", "CH4", "CH5", "CH6", "CH7";
+			#dma-cells = <3>;
+			dma-channels = <8>;
+			dma-buf-addr-alignment = <32>;
+			dma-buf-size-alignment = <32>;
+		};
+
+		adc: adc@41011000 {
+			compatible = "realtek,ameba-adc";
+			reg = <0x41011000 0xB8>;
+			clocks = <&rcc AMEBA_ADC_CLK>;
+			interrupts = <47 0>;
+			channel-count = <7>;
+			#io-channel-cells = <1>;
+			status = "disabled";
+		};
+
+		ctc: ctc@41012000 {
+			compatible = "realtek,ameba-captouch";
+			reg = <0x41012000 0x210>;
+			/* CTC and ADC share same clock control index */
+			clocks = <&rcc AMEBA_ADC_CLK>;
+			interrupts = <32 0>;
+			channel-count = <4>;
+			diff-thre = <1600 1600 1600 1600>;
+			mbias-current = <0x21 0x22 0x22 0x13>;
+			nnoise-thre = <800 800 800 800>;
+			pnoise-thre = <800 800 800 800>;
+			channel-status = <1 1 1 1>;
+			input-key = <INPUT_KEY_0 INPUT_KEY_1 INPUT_KEY_2 INPUT_KEY_3>;
+			status = "disabled";
+		};
+
+		wifi: wifi@40000000 {
+			compatible = "realtek,ameba-wifi";
+			reg = <0x40000000 0x80000>;
+			status = "disabled";
+		};
+	};
+};
+
+&nvic {
+	arm,num-irq-priority-bits = <3>;
+};

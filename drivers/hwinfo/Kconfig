@@ -244,6 +244,13 @@ config HWINFO_ANDES
 	help
 	  Enable Andes hwinfo driver
 
+config HWINFO_AMEBA
+	bool "AMEBA hwinfo"
+	default y
+	depends on SOC_FAMILY_REALTEK_AMEBA
+	help
+	  Enable Ameba hwinfo driver.
+
 config HWINFO_RW61X
 	bool "RW61X hwinfo"
 	default y

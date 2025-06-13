@@ -1,0 +1,26 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+description: AMEBA digital PDM microphone family
+
+compatible: "realtek,ameba-codec"
+
+include: [base.yaml, pinctrl-device.yaml]
+# include: i2s-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  clocks:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  i2s-index:
+    type: int
+    description: the index of I2S connect

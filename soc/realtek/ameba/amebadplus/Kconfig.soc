@@ -1,0 +1,20 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_AMEBADPLUS
+	bool
+	select SOC_FAMILY_REALTEK_AMEBA
+
+config SOC_SERIES
+	default "amebadplus" if SOC_SERIES_AMEBADPLUS
+
+config SOC_AMEBADPLUS
+	bool
+	select SOC_SERIES_AMEBADPLUS
+
+config SOC
+	default "amebadplus" if SOC_AMEBADPLUS
+
+config ARM_CORE_CM4
+	bool
+	default y if SOC_AMEBADPLUS

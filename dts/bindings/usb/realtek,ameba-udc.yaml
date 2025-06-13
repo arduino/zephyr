@@ -1,0 +1,33 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Realtek Ameba USB Device controller
+
+compatible: "realtek,ameba-udc"
+
+include: [base.yaml]
+
+bus: usb
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  in-ep-cnt:
+    type: int
+    required: true
+
+  out-ep-cnt:
+    type: int
+    required: true
+
+  udc-max-speed:
+    type: int
+    required: true
+
+  ep-ranges:
+    type: array
+    required: true

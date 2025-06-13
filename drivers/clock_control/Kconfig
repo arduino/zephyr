@@ -28,6 +28,8 @@ source "subsys/logging/Kconfig.template.log_config"
 
 source "drivers/clock_control/Kconfig.nrf"
 
+source "drivers/clock_control/Kconfig.ameba"
+
 source "drivers/clock_control/Kconfig.stm32"
 
 source "drivers/clock_control/Kconfig.beetle"

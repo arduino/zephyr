@@ -1,0 +1,5 @@
+description: AMEBA Family flash controller
+
+compatible: "realtek,ameba-flash-controller"
+
+include: flash-controller.yaml

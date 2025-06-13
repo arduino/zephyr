@@ -1,0 +1,11 @@
+# AMEBA Cryptographic Accelerator configuration options
+
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+config CRYPTO_AMEBA
+	bool "AMEBA Cryptographic Accelerator driver"
+	default y
+	depends on DT_HAS_REALTEK_AMEBA_CRYPTO_ENABLED
+	help
+	  Enable AMEBA HAL-based Cryptographic Accelerator driver.

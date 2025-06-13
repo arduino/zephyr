@@ -1,0 +1,128 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <realtek/amebad/amebad.dtsi>
+#include "rtl872xd_evb-pinctrl.dtsi"
+
+/ {
+	model = "RealTek AmebaD RTL872XD EVB";
+	compatible = "realtek,rtl872xd_evb";
+
+	chosen {
+		zephyr,console = &loguart;
+		zephyr,shell-uart = &loguart;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,entropy = &prng;
+		zephyr,flash-controller = &spic;
+	};
+
+	aliases {
+		i2c-0 = &i2c0;
+		rtc = &rtc;
+		sw0 = &button0;
+		watchdog0 = &wdg;
+		pwm-0 = &pwm0;
+		led0 = &green_led_4;
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = < &gpioa 12 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+			label = "User button";
+			zephyr,code = <INPUT_KEY_4>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		green_led_4: led_4 {
+			gpios = <&gpioa 13 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+			label = "User LD4";
+		};
+	};
+};
+
+/* 4MB flash */
+&flash0 {
+	reg = <0x0e000020 DT_SIZE_M(4)>;
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Reserve 80kB for the bootloader */
+		boot_partition: partition@0 {
+			label = "bootloader";
+			reg = <0x00000000 0x00014000>;
+			read-only;
+		};
+
+		/* Reserve 1968kB for the application in slot 0 */
+		slot0_partition: partition@14000 {
+			label = "image-0";
+			reg = <0x00014000 0x001EC000>;
+		};
+
+		storage_partition: partition@250000 {
+			label = "storage";
+			reg = <0x00250000 0x00006000>;
+		};
+	};
+};
+
+&prng {
+	status = "okay";
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&uart0 {
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* spi1 only be master */
+&spi1 {
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	rtk,spi-default-cs = <0>;
+	status = "okay";
+};
+
+&i2c0 {
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&adc {
+	pinctrl-0 = <&adc_in4_pb1 &adc_in5_pb2>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&pwm0 {
+	pinctrl-0 = <&pwm0_default>;
+	pinctrl-names = "default";
+	prescale = <255>;
+	status = "okay";
+};
+
+&wdg {
+	status = "okay";
+};
+
+&timer0 {
+	status = "okay";
+};

@@ -1,0 +1,32 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig WIFI_AMEBA
+	bool "AMEBA SoC WiFi support"
+	default y
+	select WIFI_USE_NATIVE_NETWORKING
+	select ZEPHYR_WIFI
+	#select NET_L2_WIFI_MGMT
+
+config ZEPHYR_WIFI
+	bool
+
+if WIFI_AMEBA
+
+	config NET_TCP_WORKQ_STACK_SIZE
+		default 2048
+
+	config NET_RX_STACK_SIZE
+		default 2048
+
+	config NET_MGMT_EVENT_STACK_SIZE
+		default 2048
+
+	config RTK_WIFI_STA_AUTO_DHCPV4
+		bool "Automatically starts DHCP4 negotiation"
+		depends on NET_DHCPV4
+		depends on NET_IPV4
+		help
+			WiFi driver will automatically initiate DHCPV4 negotiation when connected.
+
+endif
