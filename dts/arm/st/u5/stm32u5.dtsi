@@ -934,6 +934,15 @@
 			status = "disabled";
 		};
 
+		dcmi: dcmi@4202c000 {
+			compatible = "st,stm32-dcmi";
+			reg = <0x4202C000 0x400>;
+			interrupts = <119 0>;
+			interrupt-names = "dcmi";
+			clocks = <&rcc STM32_CLOCK(AHB2, 12U)>;
+			status = "disabled";
+		};
+
 		pwr: power@46020800 {
 			compatible = "st,stm32u5-pwr", "st,stm32-dualreg-pwr", "st,stm32-pwr";
 			reg = <0x46020800 0x400>; /* PWR register bank */
