@@ -1,0 +1,23 @@
+identifier: desire4eu
+name: Arduino Desire4eu
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - adc
+  - arduino_gpio
+  - counter
+  - dma
+  - gpio
+  - i2c
+  - pwm
+  - rtc
+  - spi
+  - watchdog
+  - usb_device
+  - usbd
+ram: 24
+flash: 128
+vendor: st

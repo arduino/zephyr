@@ -1,0 +1,6 @@
+board:
+  name: desire4eu
+  full_name: Arduino Desire4eu
+  vendor: arduino
+  socs:
+    - name: stm32c071xx

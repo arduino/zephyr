@@ -1,0 +1,159 @@
+/*
+ * Copyright (c) 2024 STMicroelectronics
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/c0/stm32c071Xb.dtsi>
+#include <st/c0/stm32c071rbtx-pinctrl.dtsi>
+#include "arduino_nano_connector.dtsi"
+#include <zephyr/dt-bindings/lora/sx126x.h>
+
+/ {
+	model = "Arduino Desire4eu board";
+	compatible = "arduino,desire4eu";
+
+	chosen {
+		zephyr,console = &cdc_acm_uart0;
+		zephyr,shell-uart = &cdc_acm_uart0;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+
+		blue_led: led {
+			gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>;
+			label = "User LED";
+		};
+	};
+
+	aliases {
+		lora0 = &lora;
+		led0 = &blue_led;
+		watchdog0 = &iwdg;
+		die-temp0 = &die_temp;
+		volt-sensor0 = &vref;
+	};
+};
+
+&clk_hsi {
+	status = "okay";
+};
+
+&clk_hsi48 {
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&clk_hsi>;
+	clock-frequency = <DT_FREQ_M(48)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <1>;
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pc14 &usart1_rx_pb7>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x00000400>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
+	status = "okay";
+};
+
+&iwdg {
+	status = "okay";
+};
+
+&timers1 {
+	st,prescaler = <10000>;
+	status = "okay";
+
+	pwm1: pwm {
+		pinctrl-0 = <&tim1_ch1_pa5>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_scl_pb8 &i2c1_sda_pb9>;
+	pinctrl-names = "default";
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&i2c2 {
+	pinctrl-0 = <&i2c2_scl_pa7 &i2c2_sda_pa6>;
+	pinctrl-names = "default";
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&spi1 {
+	pinctrl-0 = <&spi1_sck_pb3
+		     	 &spi1_miso_pb6 &spi1_mosi_pb5>;
+	pinctrl-names = "default";
+	cs-gpios = 	<&gpioa 14 GPIO_ACTIVE_LOW>,
+				<&gpiob 1 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	lora: lora@1 {
+		status = "okay";
+		compatible = "semtech,sx1262";
+		reg = <1>;
+		reset-gpios = <&gpiob 2 GPIO_ACTIVE_LOW>;
+		busy-gpios = <&gpiob 8 GPIO_ACTIVE_HIGH>;	/* TODO: fix this in HW rev */
+		spi-max-frequency = <1000000>;
+		dio1-gpios = <&gpiob 9 GPIO_ACTIVE_LOW>;
+		/*
+		dio2-tx-enable;
+		dio3-tcxo-voltage = <SX126X_DIO3_TCXO_3V3>;
+		*/
+	};
+};
+
+&adc1 {
+	pinctrl-0 = <&adc1_in0_pa0 &adc1_in1_pa1 &adc1_in4_pa4>;
+	pinctrl-names = "default";
+	st,adc-clock-source = "ASYNC";
+	clocks = <&rcc STM32_CLOCK(APB1_2, 20U)>,
+		 <&rcc STM32_SRC_HSI ADC_SEL(2)>;
+	clock-names = "adcx", "adc_ker";
+	st,adc-prescaler = <4>;
+	status = "okay";
+	vref-mv = <3300>;
+};
+
+&die_temp {
+	status = "okay";
+};
+
+&vref {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&dmamux1 {
+	status = "okay";
+};
+
+zephyr_udc0: &usb {
+	pinctrl-0 = <&usb_dm_pa11 &usb_dp_pa12>;
+	pinctrl-names = "default";
+	/* ram-size = <512>; */
+	clocks = <&rcc STM32_CLOCK(APB1, 13)>, <&rcc STM32_SRC_HSI48 USB_SEL(0)>;
+	status = "okay";
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};
