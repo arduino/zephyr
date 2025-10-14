@@ -616,6 +616,8 @@ error:
 	} else {
 		net_if_dormant_off(data->iface);
 		data->is_sta_connected = true;
+		data->ssid.length = MIN(params->ssid_length, WIFI_SSID_MAX_LEN);
+		memcpy(data->ssid.value, params->ssid, data->ssid.length);
 #if defined(CONFIG_NET_DHCPV4)
 		net_dhcpv4_restart(data->iface);
 #endif /* defined(CONFIG_NET_DHCPV4) */
@@ -750,6 +752,8 @@ static int airoc_mgmt_ap_enable(const struct device *dev, struct wifi_connect_re
 	}
 
 	data->is_ap_up = true;
+	data->ssid.length = MIN(ssid.length, WIFI_SSID_MAX_LEN);
+	memcpy(data->ssid.value, ssid.value, data->ssid.length);
 	airoc_if = airoc_ap_if;
 	net_if_dormant_off(data->iface);
 error:
@@ -779,6 +783,71 @@ static int airoc_mgmt_wifi_stats(const struct device *dev, struct net_stats_wifi
 	return 0;
 }
 #endif
+
+static int airoc_mgmt_wifi_status(const struct device *dev, struct wifi_iface_status *status)
+{
+	cy_rslt_t whd_ret;
+	whd_mac_t bssid;
+	uint32_t channel;
+	int32_t rssi;
+	whd_listen_interval_t li;
+	struct airoc_wifi_data *data = dev->data;
+
+	status->state = WIFI_STATE_DISCONNECTED;
+	status->ssid_len = 0;
+	status->ssid[0] = '\0';
+	status->bssid[0] = '\0';
+	status->band = WIFI_FREQ_BAND_2_4_GHZ;
+	status->channel = 0;
+	status->iface_mode = data->second_interface_init ? WIFI_MODE_AP : WIFI_MODE_INFRA;
+	status->link_mode = WIFI_LINK_MODE_UNKNOWN;
+	status->wpa3_ent_type = WIFI_WPA3_ENTERPRISE_NA;
+	status->security = WIFI_SECURITY_TYPE_UNKNOWN;
+	status->mfp = WIFI_MFP_DISABLE;
+	status->rssi = 0;
+	status->dtim_period = 0;
+	status->beacon_interval = 0;
+
+	if (data->is_ap_up == false && data->is_sta_connected == false) {
+		return 0;
+	}
+
+	status->state = WIFI_STATE_COMPLETED;
+	status->ssid_len = MIN(data->ssid.length, WIFI_SSID_MAX_LEN);
+	memcpy(status->ssid, data->ssid.value, status->ssid_len);
+
+	whd_interface_t *if_ptr = data->is_sta_connected ? &airoc_sta_if : &airoc_ap_if;
+
+	whd_ret = whd_wifi_get_bssid(*if_ptr, &bssid);
+	if (whd_ret == WHD_SUCCESS) {
+		memcpy(status->bssid, bssid.octet, sizeof(bssid.octet));
+	}
+
+	whd_ret = whd_wifi_get_channel(*if_ptr, &channel);
+	if (whd_ret == WHD_SUCCESS) {
+		status->channel = channel;
+		if (channel <= 14) {
+			status->band = WIFI_FREQ_BAND_2_4_GHZ;
+		} else {
+			status->band = WIFI_FREQ_BAND_5_GHZ;
+		}
+	}
+
+	status->iface_mode = data->is_ap_up ? WIFI_MODE_AP : WIFI_MODE_INFRA;
+
+	whd_ret = whd_wifi_get_rssi(*if_ptr, &rssi);
+	if (whd_ret == WHD_SUCCESS) {
+		status->rssi = rssi;
+	}
+
+	whd_ret = whd_wifi_get_listen_interval(*if_ptr, &li);
+	if (whd_ret == WHD_SUCCESS) {
+		status->beacon_interval = li.beacon;
+		status->dtim_period = li.dtim;
+	}
+
+	return 0;
+}
 
 static int airoc_mgmt_ap_disable(const struct device *dev)
 {
@@ -867,6 +936,7 @@ static const struct wifi_mgmt_ops airoc_wifi_mgmt = {
 #if defined(CONFIG_NET_STATISTICS_WIFI)
 	.get_stats = airoc_mgmt_wifi_stats,
 #endif
+	.iface_status = airoc_mgmt_wifi_status,
 };
 
 static const struct net_wifi_mgmt_offload airoc_api = {
