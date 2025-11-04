@@ -1,0 +1,25 @@
+/*
+ * Copyright (c) 2026 ARDUINO SRL
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include "arduino_nano_connector.dtsi"
+#include <espressif/esp32s3/esp32s3_appcpu.dtsi>
+#include <espressif/esp32s3/esp32s3_wroom_n16r8.dtsi>
+#include <espressif/partitions_0x0_amp_16M.dtsi>
+#include "arduino_nano_esp32-pinctrl.dtsi"
+
+/ {
+	model = "Arduino Nano ESP32";
+	compatible = "espressif,esp32s3";
+
+	chosen {
+		zephyr,sram = &sram1;
+		zephyr,ipc_shm = &shm0;
+		zephyr,ipc = &ipm0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_appcpu_partition;
+	};
+};
