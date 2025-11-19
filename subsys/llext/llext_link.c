@@ -490,6 +490,12 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 		LOG_DBG("relocation section %s (%d) acting on section %d has %zd relocations",
 			name, i, shdr->sh_info, (size_t)rel_cnt);
 
+		/* a relocation section with no symbol to relocate -> skip */
+		if(rel_cnt == 0) {
+			LOG_DBG("skipping relocation, no symbol to relocate");
+			continue;
+		}
+
 		enum llext_mem mem_idx = ldr->sect_map[shdr->sh_info].mem_idx;
 
 		if (mem_idx == LLEXT_MEM_COUNT) {
