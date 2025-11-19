@@ -405,7 +405,6 @@ static int llext_link_plt(struct llext_loader *ldr, struct llext *ext, elf_shdr_
 
 int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_load_param *ldr_parm)
 {
-	uintptr_t sect_base = 0;
 	elf_rela_t rel = {0};
 	elf_word rel_cnt = 0;
 	const char *name;
@@ -502,8 +501,6 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 			LOG_ERR("Section %d not loaded in any memory region", shdr->sh_info);
 			return -ENOEXEC;
 		}
-
-		sect_base = (uintptr_t) llext_loaded_sect_ptr(ldr, ext, shdr->sh_info);
 
 		for (int j = 0; j < rel_cnt; j++) {
 			/* get each relocation entry */
