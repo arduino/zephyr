@@ -9,6 +9,7 @@
 #include <zephyr/llext/llext_internal.h>
 #include <zephyr/llext/loader.h>
 #include <zephyr/logging/log.h>
+#include <memory.h>
 
 LOG_MODULE_DECLARE(llext, CONFIG_LLEXT_LOG_LEVEL);
 
@@ -29,8 +30,8 @@ LOG_MODULE_DECLARE(llext, CONFIG_LLEXT_LOG_LEVEL);
 #define R_XTENSA_JMP_SLOT       4
 #define R_XTENSA_RELATIVE       5
 #define R_XTENSA_PLT            6
-#define R_XTENSA_ASM_EXPAND	11
-#define R_XTENSA_SLOT0_OP	20
+#define R_XTENSA_ASM_EXPAND     11
+#define R_XTENSA_SLOT0_OP       20
 
 static int xtensa_elf_relocate(struct llext_loader *ldr, struct llext *ext,
 			       const elf_rela_t *rel, uintptr_t addr,
@@ -173,4 +174,112 @@ int arch_elf_relocate_global(struct llext_loader *ldr, struct llext *ext, const 
 
 	return xtensa_elf_relocate(ldr, ext, rel, (uintptr_t)link_addr, rel_addr, type,
 				   ELF_ST_BIND(sym->st_info), NULL);
+}
+
+uintptr_t arch_map_d2i(uintptr_t ptr)
+{
+	if (IN_RANGE(ptr, SRAM1_DRAM_START, SRAM1_DRAM_START + SRAM1_SIZE)) {
+		return ptr + IRAM_DRAM_OFFSET;
+	}
+	return 0;
+}
+
+uintptr_t arch_map_i2d(uintptr_t ptr)
+{
+	if (IN_RANGE(ptr, SRAM1_IRAM_START, SRAM1_IRAM_START + SRAM1_SIZE)) {
+		return ptr - IRAM_DRAM_OFFSET;
+	}
+	return 0;
+}
+
+uintptr_t arch_address_mangler(uintptr_t ptr, unsigned char sym_type,
+			       elf32_word sh_type)
+{
+	if (sym_type == STT_FUNC || sh_type == SHT_INIT_ARRAY ||
+			sh_type == SHT_FINI_ARRAY || sh_type == SHT_PREINIT_ARRAY) {
+		return arch_map_d2i(ptr);
+	}
+
+	return ptr;
+}
+
+int arch_elf_relocate(struct llext_loader *ldr, struct llext *ext, elf_rela_t *rel,
+		      const elf_shdr_t *shdr)
+{
+	int ret = 0;
+	elf_word reloc_type = ELF32_R_TYPE(rel->r_info);
+	const uintptr_t load_bias = (uintptr_t)ext->mem[LLEXT_MEM_TEXT];
+
+	const uintptr_t loc = llext_get_reloc_instruction_location(ldr, ext, shdr->sh_info, rel);
+
+	/* avoid doing symbol lookups for R_XTENSA_RELATIVE */
+	if (reloc_type == R_XTENSA_RELATIVE) {
+		*(uint32_t *)loc += load_bias;
+		return ret;
+	}
+
+	elf_sym_t sym;
+	uintptr_t sym_base_addr;
+	const char *sym_name;
+
+	ret = llext_read_symbol(ldr, ext, rel, &sym);
+
+	if (ret != 0) {
+		LOG_ERR("Could not read symbol from binary!");
+		return ret;
+	}
+
+	sym_name = llext_symbol_name(ldr, ext, &sym);
+
+	ret = llext_lookup_symbol(ldr, ext, &sym_base_addr, rel, &sym, sym_name, shdr);
+
+	if (ret != 0) {
+		LOG_ERR("Could not find symbol %s!", sym_name);
+		return ret;
+	}
+
+	uint32_t dst = rel->r_addend + arch_address_mangler(sym_base_addr,
+			ELF32_ST_TYPE(sym.st_info), ext->sect_hdrs[shdr->sh_info].sh_type);
+
+	switch (reloc_type) {
+	case R_XTENSA_NONE:
+	case R_XTENSA_ASM_EXPAND:
+		break;
+
+	case R_XTENSA_PLT:
+	case R_XTENSA_32:
+		*(uint32_t *)loc += dst;
+		break;
+
+	case R_XTENSA_SLOT0_OP: {
+		uint32_t value = (dst - ((loc + 3) & ~3)) >> 2;
+		uint8_t *loc_ptr = (uint8_t *)loc;
+
+		/* Check the opcode */
+		if ((loc_ptr[0] & 0xf) == 1 && !loc_ptr[1] && !loc_ptr[2]) {
+			/* L32R: low nibble is 1 */
+			loc_ptr[1] = value & 0xff;
+			loc_ptr[2] = (value >> 8) & 0xff;
+		} else if ((loc_ptr[0] & 0xf) == 5 &&
+				!(loc_ptr[0] & 0xc0) && !loc_ptr[1] && !loc_ptr[2]) {
+			/* CALLn: low nibble is 5 */
+			value = (uint16_t)value >> 2;
+			loc_ptr[0] = (loc_ptr[0] & 0x3f) | ((value << 6) & 0xc0);
+			loc_ptr[1] = (value >> 2) & 0xff;
+			loc_ptr[2] = (value >> 10) & 0xff;
+		} else {
+			LOG_DBG("%p: unhandled OPC or no relocation %02x%02x%02x inf %#x offs %#x",
+				(void *)loc, loc_ptr[2], loc_ptr[1], loc_ptr[0],
+				rel->r_info, rel->r_offset);
+			break;
+		}
+
+		break;
+	}
+	default:
+		LOG_ERR("unknown relocation: %u", reloc_type);
+		ret = -ENOEXEC;
+	}
+
+	return ret;
 }
