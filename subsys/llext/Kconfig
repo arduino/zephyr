@@ -252,4 +252,11 @@ config LLEXT_EDK_USERSPACE_ONLY
 config LLEXT_EDK_PRESERVE_INPUT_FOLDER
 	bool "Don't delete the EDK source folder"
 
+config LLEXT_XTENSA_PLT
+	bool "Xtensa-specific PLT linking"
+	depends on LLEXT && XTENSA
+	default y
+	help
+	  Use xtensa llext plt function to perform relocation, setting it to 'n'
+	  to use the standard flow shared across all other platforms
 endif

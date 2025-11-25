@@ -460,7 +460,7 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 		 * arch-specific code paths. This code should be merged with
 		 * the logic below once the differences are resolved.
 		 */
-		if (IS_ENABLED(CONFIG_XTENSA)) {
+		if (IS_ENABLED(CONFIG_LLEXT_XTENSA_PLT)) {
 			elf_shdr_t *tgt;
 
 			if (strcmp(name, ".rela.plt") == 0 ||
