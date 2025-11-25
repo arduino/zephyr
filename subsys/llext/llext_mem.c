@@ -419,3 +419,13 @@ int llext_heap_uninit(void)
 	return -ENOSYS;
 #endif
 }
+
+__weak uintptr_t arch_map_d2i(uintptr_t ptr)
+{
+	return ptr;
+}
+
+__weak uintptr_t arch_map_i2d(uintptr_t ptr)
+{
+	return ptr;
+}
