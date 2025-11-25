@@ -451,7 +451,11 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 
 		rel_cnt = shdr->sh_size / shdr->sh_entsize;
 
-		name = llext_section_name(ldr, ext, shdr);
+		/* a relocation section with no symbol to relocate -> skip */
+		if (rel_cnt == 0) {
+			LOG_DBG("skipping relocation, no symbol to relocate");
+			continue;
+		}
 
 		/*
 		 * FIXME: The Xtensa port is currently using a different way of
@@ -461,6 +465,8 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 		 */
 		if (IS_ENABLED(CONFIG_LLEXT_XTENSA_PLT)) {
 			elf_shdr_t *tgt;
+
+			name = llext_section_name(ldr, ext, shdr);
 
 			if (strcmp(name, ".rela.plt") == 0 ||
 			    strcmp(name, ".rela.dyn") == 0) {
@@ -486,14 +492,12 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 			continue;
 		}
 
+#if CONFIG_LLEXT_LOG_LEVEL > LOG_LEVEL_INF
+		name = llext_section_name(ldr, ext, shdr);
+
 		LOG_DBG("relocation section %s (%d) acting on section %d has %zd relocations",
 			name, i, shdr->sh_info, (size_t)rel_cnt);
-
-		/* a relocation section with no symbol to relocate -> skip */
-		if(rel_cnt == 0) {
-			LOG_DBG("skipping relocation, no symbol to relocate");
-			continue;
-		}
+#endif /* CONFIG_LLEXT_LOG_LEVEL > LOG_LEVEL_INF */
 
 		enum llext_mem mem_idx = ldr->sect_map[shdr->sh_info].mem_idx;
 
