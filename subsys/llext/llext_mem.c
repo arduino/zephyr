@@ -144,7 +144,8 @@ static int llext_copy_region(struct llext_loader *ldr, struct llext *ext,
 				}
 
 				if ((mem_idx == LLEXT_MEM_TEXT) &&
-				    !INSTR_FETCHABLE(ext->mem[mem_idx], region_alloc)) {
+				    !INSTR_FETCHABLE(arch_map_d2i((uintptr_t)ext->mem[mem_idx]),
+								      region_alloc)) {
 					LOG_WRN("Cannot reuse ELF buffer for region %d, not "
 						"instruction memory: %p-%p",
 						mem_idx, ext->mem[mem_idx],
