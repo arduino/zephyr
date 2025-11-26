@@ -14,6 +14,10 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 
+#if CONFIG_HARVARD && CONFIG_ARC
+#include <llext_arch_custom.h>
+#endif
+
 /*
  * Macro to determine if section / region is in instruction memory
  * Will need to be updated if any non-ARC boards using Harvard architecture is added
