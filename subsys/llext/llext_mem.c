@@ -33,18 +33,18 @@ struct k_heap llext_instr_heap;
 struct k_heap llext_data_heap;
 #else
 struct k_heap llext_heap;
-#endif
+#endif /* CONFIG_HARVARD */
 bool llext_heap_inited;
 #else
 #ifdef CONFIG_HARVARD
 Z_HEAP_DEFINE_IN_SECT(llext_instr_heap, (CONFIG_LLEXT_INSTR_HEAP_SIZE * KB(1)),
-		      __attribute__((section(".rodata.llext_instr_heap"))));
+		      LLEXT_INSTR_HEAP_SECTION);
 Z_HEAP_DEFINE_IN_SECT(llext_data_heap, (CONFIG_LLEXT_DATA_HEAP_SIZE * KB(1)),
-		      __attribute__((section(".data.llext_data_heap"))));
-#else
+		      LLEXT_DATA_HEAP_SECTION);
+#else /* CONFIG_HARVARD */
 K_HEAP_DEFINE(llext_heap, CONFIG_LLEXT_HEAP_SIZE * KB(1));
-#endif
-#endif
+#endif /* CONFIG_HARVARD */
+#endif /* CONFIG_LLEXT_HEAP_DYNAMIC */
 
 /*
  * Initialize the memory partition associated with the specified memory region

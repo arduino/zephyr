@@ -42,6 +42,16 @@
 #define INSTR_FETCHABLE(base_addr, alloc) true
 #endif
 
+#ifdef CONFIG_HARVARD
+#ifndef LLEXT_INSTR_HEAP_SECTION
+#define LLEXT_INSTR_HEAP_SECTION
+#endif /* LLEXT_INSTR_HEAP_SECTION */
+
+#ifndef LLEXT_DATA_HEAP_SECTION
+#define LLEXT_DATA_HEAP_SECTION
+#endif /* LLEXT_DATA_HEAP_SECTION */
+#endif /* CONFIG_HARVARD */
+
 /*
  * Global extension list
  */
