@@ -119,6 +119,16 @@
 	};
 };
 
+&usart6_rx_pg9 {
+	bias-pull-up;
+};
+
+&usart6 {
+	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pg9>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+};
+
 &adc1 {
 	pinctrl-0 = <&adc1_inp0_pa0_c &adc1_inp6_pf12>;
 	pinctrl-names = "default";
