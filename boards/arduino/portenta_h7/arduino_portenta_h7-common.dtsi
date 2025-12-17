@@ -57,6 +57,10 @@
 };
 
 /* UART0 in datasheet */
+&uart4_rx_pi9 {
+	bias-pull-up;
+};
+
 &uart4 {
 	pinctrl-0 = <&uart4_tx_pa0 &uart4_rx_pi9>;
 	pinctrl-names = "default";
@@ -64,6 +68,10 @@
 };
 
 /* UART1 in datasheet */
+&usart1_rx_pa10 {
+	bias-pull-up;
+};
+
 &usart1 {
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
 	pinctrl-names = "default";
@@ -71,6 +79,10 @@
 };
 
 /* UART2 in datasheet */
+&usart6_rx_pg9 {
+	bias-pull-up;
+};
+
 &usart6 {
 	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pg9>;
 	pinctrl-names = "default";
@@ -78,6 +90,10 @@
 };
 
 /* UART3 in datasheet */
+&uart8_rx_pj9 {
+	bias-pull-up;
+};
+
 &uart8 {
 	pinctrl-0 = <&uart8_tx_pj8 &uart8_rx_pj9>;
 	pinctrl-names = "default";

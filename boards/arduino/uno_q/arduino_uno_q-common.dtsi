@@ -98,11 +98,19 @@ stm32_lp_tick_source: &lptim1 {
 	status = "okay";
 };
 
+&lpuart1_rx_pg8 {
+	bias-pull-up;
+};
+
 &lpuart1 {
 	pinctrl-0 = <&lpuart1_tx_pg7 &lpuart1_rx_pg8 &lpuart1_rts_pg6 &lpuart1_cts_pg5>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
 	status = "okay";
+};
+
+&usart1_rx_pb7 {
+	bias-pull-up;
 };
 
 &usart1 {
