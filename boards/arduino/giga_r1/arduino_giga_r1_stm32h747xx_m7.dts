@@ -73,6 +73,10 @@
 	clock-frequency = <DT_FREQ_M(480)>;
 };
 
+&usart1_rx_pb7 {
+	bias-pull-up;
+};
+
 &usart1 {
 	status = "okay";
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pb7>;
@@ -80,11 +84,19 @@
 	current-speed = <115200>;
 };
 
+&usart6_rx_pc7 {
+	bias-pull-up;
+};
+
 &usart6 {
 	status = "disabled";
 	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pc7>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
+};
+
+&uart4_rx_pi9 {
+	bias-pull-up;
 };
 
 &uart4 {
