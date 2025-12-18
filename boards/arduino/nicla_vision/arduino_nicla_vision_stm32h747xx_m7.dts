@@ -34,6 +34,7 @@
 		dmic0 = &dmic_dev;
 		led0 = &red_led;
 		led1 = &green_led;
+		led2 = &blue_led;
 	};
 
 	otghs_ulpi_phy: otghs_ulpis_phy {
