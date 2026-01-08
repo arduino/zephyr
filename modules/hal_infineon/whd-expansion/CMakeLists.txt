@@ -26,6 +26,10 @@ if(CONFIG_AIROC_WLAN_MFG_FIRMWARE)
   zephyr_compile_definitions(WLAN_MFG_FIRMWARE)
 endif()
 
+if(CONFIG_AIROC_WIFI_CUSTOM)
+  zephyr_compile_definitions(RESOURCE_READ_FROM_C_FILE)
+endif()
+
 zephyr_compile_definitions(CY_WIFI_COUNTRY=$<UPPER_CASE:${CONFIG_WHD_WIFI_COUNTRY}>)
 
 if(CONFIG_WHD_DISABLE_SDIO_PULLUP_DURING_SPI_SLEEP)
@@ -303,20 +307,22 @@ if(CONFIG_CYW955573M2IPA1_SM AND NOT CONFIG_AIROC_WIFI_CUSTOM)
   set(NVRAM_IMAGE_NAME ${hal_wifi_dir_resources}/nvram/COMPONENT_55572/COMPONENT_CYW955573M2IPA1/cyw955573m2ipa1_rev1.01.txt)
 endif()
 
-# set fw size
-file(SIZE ${FW_IMAGE_NAME} FW_IMAGE_SIZE)
-zephyr_compile_definitions(FW_IMAGE_NAME="${FW_IMAGE_NAME}")
-zephyr_compile_definitions(FW_IMAGE_SIZE=${FW_IMAGE_SIZE})
+if (NOT CONFIG_AIROC_WIFI_CUSTOM)
+  # set fw size
+  file(SIZE ${FW_IMAGE_NAME} FW_IMAGE_SIZE)
+  zephyr_compile_definitions(FW_IMAGE_NAME="${FW_IMAGE_NAME}")
+  zephyr_compile_definitions(FW_IMAGE_SIZE=${FW_IMAGE_SIZE})
 
-# set clm size
-file(SIZE ${CLM_IMAGE_NAME} CLM_IMAGE_SIZE)
-zephyr_compile_definitions(CLM_IMAGE_NAME="${CLM_IMAGE_NAME}")
-zephyr_compile_definitions(CLM_IMAGE_SIZE=${CLM_IMAGE_SIZE})
+  # set clm size
+  file(SIZE ${CLM_IMAGE_NAME} CLM_IMAGE_SIZE)
+  zephyr_compile_definitions(CLM_IMAGE_NAME="${CLM_IMAGE_NAME}")
+  zephyr_compile_definitions(CLM_IMAGE_SIZE=${CLM_IMAGE_SIZE})
 
-# set nvram size
-file(SIZE ${NVRAM_IMAGE_NAME} NVRAM_IMAGE_SIZE)
-zephyr_compile_definitions(NVRAM_IMAGE_NAME="${NVRAM_IMAGE_NAME}")
-zephyr_compile_definitions(NVRAM_IMAGE_SIZE=${NVRAM_IMAGE_SIZE})
+  # set nvram size
+  file(SIZE ${NVRAM_IMAGE_NAME} NVRAM_IMAGE_SIZE)
+  zephyr_compile_definitions(NVRAM_IMAGE_NAME="${NVRAM_IMAGE_NAME}")
+  zephyr_compile_definitions(NVRAM_IMAGE_SIZE=${NVRAM_IMAGE_SIZE})
+endif()
 
 # generate FW inc_blob from fw_bin
 if(EXISTS ${airoc_wifi_fw_bin})
