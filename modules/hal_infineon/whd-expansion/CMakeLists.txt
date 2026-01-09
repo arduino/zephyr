@@ -26,6 +26,10 @@ if(CONFIG_AIROC_WLAN_MFG_FIRMWARE)
   zephyr_compile_definitions(WLAN_MFG_FIRMWARE)
 endif()
 
+if (NOT CONFIG_WIFI_LOG_LEVEL_DBG AND NOT CONFIG_DEBUG)
+  zephyr_compile_definitions(WHD_PRINT_DISABLE)
+endif()
+
 zephyr_compile_definitions(CY_WIFI_COUNTRY=$<UPPER_CASE:${CONFIG_WHD_WIFI_COUNTRY}>)
 
 if(CONFIG_WHD_DISABLE_SDIO_PULLUP_DURING_SPI_SLEEP)
