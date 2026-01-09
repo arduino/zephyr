@@ -70,6 +70,13 @@ config IFX_WIFI_SOFTAP_SUPPORT
 	help
 	  Enable WiFi SoftAP support in the driver
 
+config AIROC_DISABLE_PRINT
+	bool "Disable prints from whd-expansion driver"
+	default y
+	help
+	  Disable non integrated prints prints from whd-expansion driver.
+	  TODO: make configurale via zephyr loglevels.
+
 config AIROC_WIFI_CUSTOM
 	bool "Custom CYW43xx device/module"
 	help
