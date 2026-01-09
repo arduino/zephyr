@@ -30,6 +30,10 @@ if(CONFIG_AIROC_WIFI_CUSTOM)
   zephyr_compile_definitions(RESOURCE_READ_FROM_C_FILE)
 endif()
 
+if (CONFIG_AIROC_DISABLE_PRINT)
+  zephyr_compile_definitions(WHD_PRINT_DISABLE)
+endif()
+
 zephyr_compile_definitions(CY_WIFI_COUNTRY=$<UPPER_CASE:${CONFIG_WHD_WIFI_COUNTRY}>)
 
 if(CONFIG_WHD_DISABLE_SDIO_PULLUP_DURING_SPI_SLEEP)
