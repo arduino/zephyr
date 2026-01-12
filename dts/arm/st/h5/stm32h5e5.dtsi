@@ -9,5 +9,44 @@
 / {
 	soc {
 		compatible = "st,stm32h5e5", "st,stm32h5", "simple-bus";
+
+		usbotg_hs: otghs@42040000 {
+			compatible = "st,stm32-otghs";
+			reg = <0x42040000 0x20000>;
+			interrupts = <161 0>;
+			interrupt-names = "otghs";
+			num-bidir-endpoints = <9>;
+			ram-size = <4096>;
+			maximum-speed = "high-speed";
+			clocks = <&rcc STM32_CLOCK(AHB2, 14)>;
+			phys = <&otghs_phy>;
+			status = "disabled";
+		};
+
+		pinctrl: pin-controller@42020000 {
+			gpioj: gpio@42022400 {
+				compatible = "st,stm32-gpio";
+				gpio-controller;
+				#gpio-cells = <2>;
+				reg = <0x42022400 0x400>;
+				clocks = <&rcc STM32_CLOCK(AHB2, 9)>;
+			};
+
+			gpiok: gpio@42022800 {
+				compatible = "st,stm32-gpio";
+				gpio-controller;
+				#gpio-cells = <2>;
+				reg = <0x42022800 0x400>;
+				clocks = <&rcc STM32_CLOCK(AHB2, 26)>;
+			};
+		};
+	};
+
+	otghs_phy: otghs_phy {
+		compatible = "st,stm32h5-otghs-phy";
+		clocks = <&rcc STM32_CLOCK(AHB2, 13)>,
+			 <&rcc STM32_SRC_HSE OTGHS_SEL(0)>;
+		#phy-cells = <0>;
+		status = "disabled";
 	};
 };
