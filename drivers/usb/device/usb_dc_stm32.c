@@ -240,7 +240,7 @@ void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd)
 }
 #endif
 
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32u5_otghs_phy)
+#if 0 //DT_HAS_COMPAT_STATUS_OKAY(st_stm32u5_otghs_phy)
 
 static const struct stm32_pclken phy_pclken[] = STM32_DT_CLOCKS(DT_INST_PHANDLE(0, phys));
 

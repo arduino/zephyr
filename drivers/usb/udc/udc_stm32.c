@@ -49,6 +49,10 @@ LOG_MODULE_REGISTER(udc_stm32, CONFIG_UDC_DRIVER_LOG_LEVEL);
 #define UDC_STM32_IRQ_NAME     usb
 #endif
 
+#if defined(CONFIG_SOC_SERIES_STM32H5X)
+#include <stm32h5xx_hal_pwr_ex.h>
+#endif
+
 /* Shorthand to obtain PHY node for an instance */
 #define UDC_STM32_PHY(usb_node)			DT_PROP_BY_IDX(usb_node, phys, 0)
 
@@ -131,7 +135,7 @@ LOG_MODULE_REGISTER(udc_stm32, CONFIG_UDC_DRIVER_LOG_LEVEL);
 #define USB_USBPHYC_CR_FSEL_24MHZ        USB_USBPHYC_CR_FSEL_1
 #endif
 
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32u5_otghs_phy)
+#if 0 //DT_HAS_COMPAT_STATUS_OKAY(st_stm32u5_otghs_phy)
 static const int syscfg_otg_hs_phy_clk[] = {
 	SYSCFG_OTG_HS_PHY_CLK_SELECT_1,	/* 16Mhz   */
 	SYSCFG_OTG_HS_PHY_CLK_SELECT_2,	/* 19.2Mhz */
@@ -1424,6 +1428,28 @@ static int udc_stm32_clock_enable(const struct device *dev)
 	/* Peripheral OTGPHY clock enable */
 	LL_AHB5_GRP1_EnableClock(LL_AHB5_GRP1_PERIPH_OTGPHY1);
 #elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32u5_otghs_phy)
+#if defined(CONFIG_SOC_SERIES_STM32H5X)
+	const struct stm32_pclken hsphy_clk[] = STM32_DT_CLOCKS(DT_NODELABEL(otghs_phy));
+	const uint32_t hsphy_clknum = DT_NUM_CLOCKS(DT_NODELABEL(otghs_phy));
+
+	if (hsphy_clknum > 1) {
+		if (clock_control_configure(clk, (void *)&hsphy_clk[1], NULL) != 0) {
+			LOG_ERR("Failed OTGHS PHY mux configuration");
+			return -EIO;
+		}
+	}
+
+	if (clock_control_on(clk, (void *)&hsphy_clk[0]) != 0) {
+		LOG_ERR("Failed enabling OTGHS PHY clock");
+		return -EIO;
+	}
+
+	LL_RCC_SetOTGPHYClockSource(LL_RCC_OTGPHYREFCKCLKSOURCE_24M);
+	__HAL_RCC_OTGHS_CONFIG(RCC_OTGHSCLKSOURCE_HSE_DIV2);
+
+	HAL_PWREx_EnableUSBOTGHSPhy();
+
+#else
 	const struct stm32_pclken hsphy_clk[] = STM32_DT_CLOCKS(DT_NODELABEL(otghs_phy));
 	const uint32_t hsphy_clknum = DT_NUM_CLOCKS(DT_NODELABEL(otghs_phy));
 
@@ -1448,6 +1474,7 @@ static int udc_stm32_clock_enable(const struct device *dev)
 		LOG_ERR("Failed enabling OTGHS PHY clock");
 		return -EIO;
 	}
+#endif
 #elif defined(CONFIG_SOC_SERIES_STM32H7X)
 	/*
 	 * If HS PHY (over ULPI) is used, enable ULPI interface clock.

@@ -1,0 +1,11 @@
+# Arduino Gertrude board configuration
+
+# Copyright (c) 2026 Arduino SRL
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_ARDUINO_GERTRUDE
+
+configdefault NET_L2_ETHERNET
+	default y
+
+endif # BOARD_ARDUINO_GERTRUDE
