@@ -1,0 +1,421 @@
+/*
+ * Copyright (c) 2021 Linaro Limited
+ * Copyright (c) 2023 Thomas Stranger
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <st/h5/stm32h5f5.dtsi>
+#include <st/h5/stm32h5f5zjtx-pinctrl.dtsi>
+#include <zephyr/dt-bindings/sensor/qdec_stm32.h>
+#include <zephyr/dt-bindings/led/led.h>
+
+/ {
+	leds: leds {
+		compatible = "gpio-leds";
+
+		green_led_0: led_1 {
+			gpios = <&gpiog 6 GPIO_ACTIVE_LOW>;
+			label = "GREEN0";
+		};
+
+		blue_led_0: led_2 {
+			gpios = <&gpiok 2 GPIO_ACTIVE_LOW>;
+			label = "BLUE0";
+		};
+
+		red_led_0: led_3 {
+			gpios = <&gpiog 3 GPIO_ACTIVE_LOW>;
+			label = "RED0";
+		};
+
+		green_led_1: led_4 {
+			gpios = <&gpiod 10 GPIO_ACTIVE_LOW>;
+			label = "GREEN1";
+		};
+
+		blue_led_1: led_5 {
+			gpios = <&gpiok 1 GPIO_ACTIVE_LOW>;
+			label = "BLUE1";
+		};
+
+		red_led_1: led_6 {
+			gpios = <&gpiog 4 GPIO_ACTIVE_LOW>;
+			label = "RED1";
+		};
+
+		green_led_2: led_7 {
+			gpios = <&gpiog 5 GPIO_ACTIVE_LOW>;
+			label = "GREEN2";
+		};
+
+		blue_led_2: led_8 {
+			gpios = <&gpiok 0 GPIO_ACTIVE_LOW>;
+			label = "BLUE2";
+		};
+
+		red_led_2: led_9 {
+			gpios = <&gpiod 11 GPIO_ACTIVE_LOW>;
+			label = "RED2";
+		};
+
+		green_led_3: led_10 {
+			gpios = <&gpiog 8 GPIO_ACTIVE_LOW>;
+			label = "GREEN3";
+		};
+
+		blue_led_3: led_11 {
+			gpios = <&gpioc 6 GPIO_ACTIVE_LOW>;
+			label = "BLUE3";
+		};
+
+		red_led_3: led_12 {
+			gpios = <&gpiog 2 GPIO_ACTIVE_LOW>;
+			label = "RED3";
+		};
+	};
+
+	rgb_led_0: led0 {
+			compatible = "leds-group-multicolor";
+
+			leds = <&red_led_0>, <&green_led_0>, <&blue_led_0>;
+			color-mapping = <LED_COLOR_ID_RED>,
+							<LED_COLOR_ID_GREEN>,
+							<LED_COLOR_ID_BLUE>;
+	};
+
+	rgb_led_1: led1 {
+			compatible = "leds-group-multicolor";
+
+			leds = <&red_led_1>, <&green_led_1>, <&blue_led_1>;
+			color-mapping = <LED_COLOR_ID_RED>,
+							<LED_COLOR_ID_GREEN>,
+							<LED_COLOR_ID_BLUE>;
+	};
+
+	rgb_led_2: led2 {
+			compatible = "leds-group-multicolor";
+
+			leds = <&red_led_1>, <&green_led_1>, <&blue_led_1>;
+			color-mapping = <LED_COLOR_ID_RED>,
+							<LED_COLOR_ID_GREEN>,
+							<LED_COLOR_ID_BLUE>;
+	};
+
+	rgb_led_3: led3 {
+			compatible = "leds-group-multicolor";
+
+			leds = <&red_led_3>, <&green_led_3>, <&blue_led_3>;
+			color-mapping = <LED_COLOR_ID_RED>,
+							<LED_COLOR_ID_GREEN>,
+							<LED_COLOR_ID_BLUE>;
+	};
+
+/*
+	TODO: led matrix driver
+*/
+
+
+/*
+	TODO: removeme when i2c4 is fixed in HW
+*/
+	i2c4_bitbanged: gpio_i2c {
+		compatible = "gpio-i2c";
+		status = "okay";
+		clock-frequency = <I2C_BITRATE_STANDARD>;
+		sda-gpios = <&gpioh 10 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+		scl-gpios = <&gpioh 11 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	can_transceiver0: can-phy0 {
+		compatible = "nxp,tja1051", "can-transceiver-gpio";
+		enable-gpios = <&gpioi 11 GPIO_ACTIVE_LOW>;
+		max-bitrate = <5000000>;
+		#phy-cells = <0>;
+	};
+};
+
+&timers2 {
+	st,prescaler = <239>;
+	status = "okay";
+	counter0: counter {
+		status = "okay";
+	};
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(48)>;
+	status = "okay";
+};
+
+&clk_hsi48 {
+	status = "okay";
+};
+
+&clk_lse {
+	status = "okay";
+};
+
+&pll {
+	div-m = <4>;
+	mul-n = <40>;
+	div-p = <2>;
+	div-q = <2>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&pll2 {
+	div-m = <4>;
+	mul-n = <20>;
+	div-p = <2>;
+	div-q = <2>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&pll3 {
+	div-m = <3>;
+	mul-n = <8>;
+	div-p = <2>;
+	div-q = <8>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&i3c1 {
+	pinctrl-0 = <&i3c1_scl_pd12 &i3c1_sda_pd13>;
+	pinctrl-names = "default";
+	i3c-scl-hz = <12500000>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(240)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <2>;
+	apb2-prescaler = <1>;
+	apb3-prescaler = <2>;
+};
+
+/* QWIIK */
+&i2c3 {
+	pinctrl-0 = <&i2c3_scl_pa8 &i2c3_sda_pc9>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* JMISC */
+&i2c2 {
+	pinctrl-0 = <&i2c2_scl_pf1 &i2c2_sda_pf0>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* JDIGITAL */
+
+/*
+//// BUG on current HW - replaced by bitbanged i2c
+&i2c4 {
+	pinctrl-0 = <&i2c4_scl_ph11 &i2c4_sda_ph12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+*/
+
+&pinctrl {
+	/omit-if-no-ref/ usart3_rx_pb11: usart3_rx_pb11 {
+		pinmux = <STM32_PINMUX('B', 11, AF7)>;
+		bias-pull-up;
+	};
+	/omit-if-no-ref/ spi3_miso_pf14: spi3_miso_pf14 {
+		pinmux = <STM32_PINMUX('F', 14, AF6)>;
+		bias-pull-down;
+	};
+};
+
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&spi2 {
+	pinctrl-0 = <&spi2_sck_pb13 &spi2_miso_pb14 &spi2_mosi_pb15 &spi2_nss_pb12>;
+	pinctrl-names = "default";
+	/*cs-gpios = <&gpiob 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;*/
+	status = "okay";
+};
+
+&spi3 {
+	pinctrl-0 = <&spi3_sck_pc10 &spi3_miso_pf14 &spi3_mosi_pc12 &spi3_nss_pa15>;
+	pinctrl-names = "default";
+	/*cs-gpios = <&gpioa 15 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;*/
+	status = "okay";
+};
+
+/* INTERNAL */
+&i2c1 {
+	pinctrl-0 = <&i2c1_scl_pb8 &i2c1_sda_pb9>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK(APB3, 21)>,
+		 <&rcc STM32_SRC_LSE RTC_SEL(1)>;
+	status = "okay";
+};
+
+&iwdg {
+	status = "okay";
+};
+
+&gpdma1 {
+	status = "okay";
+};
+
+&gpdma2 {
+	status = "okay";
+};
+
+&dac1 {
+	pinctrl-0 = <&dac1_out1_pa4 &dac1_out2_pa5>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&adc1 {
+	clocks = <&rcc STM32_CLOCK(AHB2, 10)>,
+		 <&rcc STM32_SRC_HCLK ADCDAC_SEL(0)>;
+	clock-names = "adcx", "adc_ker";
+	pinctrl-0 = <&adc1_inp18_pa4 &adc1_inp19_pa5>;
+	pinctrl-names = "default";
+	st,adc-clock-source = "ASYNC";
+	st,adc-prescaler = <6>;
+	status = "okay";
+};
+
+&adc3 {
+	clocks = <&rcc STM32_CLOCK(AHB2, 24)>,
+		 <&rcc STM32_SRC_HCLK ADCDAC_SEL(0)>;
+	clock-names = "adcx", "adc_ker";
+	pinctrl-0 = <&adc3_inp6_pe12 &adc3_inp7_pe13 &adc3_inp8_pe14 &adc3_inp9_pe15>;
+	pinctrl-names = "default";
+	st,adc-clock-source = "ASYNC";
+	st,adc-prescaler = <6>;
+	status = "okay";
+};
+
+&fdcan1 {
+	pinctrl-0 = <&fdcan1_rx_pd0 &fdcan1_tx_pd1>;
+	// pinctrl-1 = <&fdcan1_rx_pi9 &fdcan1_tx_pi10>; /* alt mux */
+	pinctrl-names = "default";
+	clk-divider = <1>;
+	phys = <&can_transceiver0>;
+	status = "okay";
+};
+
+&fdcan2 {
+	pinctrl-0 = <&fdcan2_rx_pb5 &fdcan2_tx_pb6>;
+	//pinctrl-1 = <&fdcan2_rx_pd9 &fdcan2_tx_pa10>; /* alt mux */
+	pinctrl-names = "default";
+	clk-divider = <1>;
+	status = "okay";
+};
+
+&fdcan3 {
+	pinctrl-0 = <&fdcan3_rx_pf7 &fdcan3_tx_pf6>;
+	pinctrl-names = "default";
+	clk-divider = <1>;
+	status = "okay";
+};
+
+/* FAN INPUT*/
+&timers14 {
+	st,prescaler = <254>;
+	status = "okay";
+
+	pwm14: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim14_ch1_pa7>;
+		pinctrl-names = "default";
+		four-channel-capture-support;
+	};
+};
+
+/* FAN OUTPUT */
+&timers16 {
+	st,prescaler = <500>;
+	status = "okay";
+
+	pwm16: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim16_ch1_pg15>;
+		pinctrl-names = "default";
+	};
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(64)>;
+		};
+
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x00010000 DT_SIZE_K(960)>;
+		};
+
+		slot1_partition: partition@100000 {
+			label = "image-1";
+			reg = <0x00100000 DT_SIZE_K(960)>;
+		};
+
+		storage_partition: partition@1f0000 {
+			label = "storage";
+			reg = <0x001f0000 DT_SIZE_K(64)>;
+		};
+	};
+};
+
+zephyr_udc0: &usbotg_hs {
+	pinctrl-0 = <>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&otghs_phy {
+	clock-reference = "SYSCFG_OTG_HS_PHY_CLK_16MHz";
+	status = "okay";
+};
+
+&vref {
+	status = "okay";
+};
+
+&vbat {
+	status = "okay";
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+stm32_lp_tick_source: &lptim4 {
+	clocks = <&rcc STM32_CLOCK(APB3, 13)>,
+		 <&rcc STM32_SRC_LSI LPTIM4_SEL(4)>;
+	status = "okay";
+};

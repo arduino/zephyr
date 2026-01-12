@@ -1,0 +1,6 @@
+board:
+  name: arduino_gertrude
+  full_name: Arduino Gertrude
+  vendor: arduino
+  socs:
+    - name: stm32h5f5xx
