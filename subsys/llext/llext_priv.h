@@ -70,7 +70,7 @@ int llext_copy_regions(struct llext_loader *ldr, struct llext *ext,
 void llext_free_regions(struct llext *ext);
 void llext_adjust_mmu_permissions(struct llext *ext);
 
-#ifdef CONFIG_HARVARD
+#ifdef CONFIG_LLEXT_SEPARATE_HEAPS
 extern struct k_heap llext_instr_heap;
 extern struct k_heap llext_data_heap;
 #else

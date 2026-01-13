@@ -28,22 +28,22 @@ LOG_MODULE_DECLARE(llext, CONFIG_LLEXT_LOG_LEVEL);
 #endif
 
 #ifdef CONFIG_LLEXT_HEAP_DYNAMIC
-#ifdef CONFIG_HARVARD
+#if CONFIG_LLEXT_SEPARATE_HEAPS
 struct k_heap llext_instr_heap;
 struct k_heap llext_data_heap;
 #else
 struct k_heap llext_heap;
-#endif /* CONFIG_HARVARD */
+#endif /* CONFIG_LLEXT_SEPARATE_HEAPS */
 bool llext_heap_inited;
 #else
-#ifdef CONFIG_HARVARD
+#ifdef CONFIG_LLEXT_SEPARATE_HEAPS
 Z_HEAP_DEFINE_IN_SECT(llext_instr_heap, (CONFIG_LLEXT_INSTR_HEAP_SIZE * KB(1)),
 		      LLEXT_INSTR_HEAP_SECTION);
 Z_HEAP_DEFINE_IN_SECT(llext_data_heap, (CONFIG_LLEXT_DATA_HEAP_SIZE * KB(1)),
 		      LLEXT_DATA_HEAP_SECTION);
-#else /* CONFIG_HARVARD */
+#else /* CONFIG_LLEXT_SEPARATE_HEAPS */
 K_HEAP_DEFINE(llext_heap, CONFIG_LLEXT_HEAP_SIZE * KB(1));
-#endif /* CONFIG_HARVARD */
+#endif /* CONFIG_LLEXT_SEPARATE_HEAPS */
 #endif /* CONFIG_LLEXT_HEAP_DYNAMIC */
 
 /*
@@ -367,7 +367,7 @@ int llext_add_domain(struct llext *ext, struct k_mem_domain *domain)
 
 int llext_heap_init_harvard(void *instr_mem, size_t instr_bytes, void *data_mem, size_t data_bytes)
 {
-#if !defined(CONFIG_LLEXT_HEAP_DYNAMIC) || !defined(CONFIG_HARVARD)
+#if !defined(CONFIG_LLEXT_HEAP_DYNAMIC) || !defined(CONFIG_LLEXT_SEPARATE_HEAPS)
 	return -ENOSYS;
 #else
 	if (llext_heap_inited) {
@@ -384,7 +384,7 @@ int llext_heap_init_harvard(void *instr_mem, size_t instr_bytes, void *data_mem,
 
 int llext_heap_init(void *mem, size_t bytes)
 {
-#if !defined(CONFIG_LLEXT_HEAP_DYNAMIC) || defined(CONFIG_HARVARD)
+#if !defined(CONFIG_LLEXT_HEAP_DYNAMIC) || defined(CONFIG_LLEXT_SEPARATE_HEAPS)
 	return -ENOSYS;
 #else
 	if (llext_heap_inited) {
