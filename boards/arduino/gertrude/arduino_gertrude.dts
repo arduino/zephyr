@@ -25,10 +25,9 @@
 	};
 
 	aliases {
-		led0 = &green_led_1;
-		led1 = &blue_led_1;
+		led0 = &green_led_0;
+		led1 = &blue_led_0;
 		watchdog0 = &iwdg;
-		pwm-led0 = &pwm_led_1;
 		volt-sensor0 = &vref;
 		volt-sensor1 = &vbat;
 	};
@@ -36,29 +35,4 @@
 
 &rng {
 	status = "okay";
-};
-
-&mac {
-	status = "okay";
-	pinctrl-0 = <&eth_mii_rxd0_pc4
-		     &eth_mii_rxd1_pc5
-		     &eth_rmii_ref_clk_pa1
-		     &eth_rmii_crs_dv_pa7
-		     &eth_rmii_tx_en_pg11
-		     &eth_mii_txd0_pg13
-		     &eth_mii_txd1_pb15>;
-	pinctrl-names = "default";
-	phy-connection-type = "rmii";
-	phy-handle = <&eth_phy>;
-};
-
-&mdio {
-	status = "okay";
-	pinctrl-0 = <&eth_mdio_pa2 &eth_mdc_pc1>;
-	pinctrl-names = "default";
-
-	eth_phy: ethernet-phy@0 {
-		compatible = "ethernet-phy";
-		reg = <0x00>;
-	};
 };
