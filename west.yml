@@ -255,7 +255,8 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: ec0fe4a09a5bbf0e482ab1f4bd42d66131c64369
+      url: git@github.com:bcmi-labs/hal_stm32.git
+      revision: 0feb563802f5433914a6663661d4385bf7f1eaae
       path: modules/hal/stm32
       groups:
         - hal
