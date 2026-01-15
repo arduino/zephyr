@@ -228,7 +228,8 @@
 };
 
 &usart3 {
-	pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
+	pinctrl-0 = <&usart3_tx_pd8 &usart3_rx_pd9>; /* TODO: nucleo removeme */
+	//pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
 	status = "okay";
@@ -298,7 +299,7 @@
 	pinctrl-0 = <&fdcan1_rx_pd0 &fdcan1_tx_pd1>;
 	// pinctrl-1 = <&fdcan1_rx_pi9 &fdcan1_tx_pi10>; /* alt mux */
 	pinctrl-names = "default";
-	clk-divider = <2>;
+	clk-divider = <1>;
 	phys = <&can_transceiver0>;
 	status = "okay";
 };
@@ -307,7 +308,7 @@
 	pinctrl-0 = <&fdcan2_rx_pb5 &fdcan2_tx_pb6>;
 	//pinctrl-1 = <&fdcan2_rx_pd9 &fdcan2_tx_pa10>; /* alt mux */
 	pinctrl-names = "default";
-	clk-divider = <2>;
+	clk-divider = <1>;
 	status = "okay";
 };
 
@@ -315,7 +316,7 @@
 &fdcan3 {
 	pinctrl-0 = <&fdcan3_rx_pf7 &fdcan3_tx_pf6>;
 	pinctrl-names = "default";
-	clk-divider = <2>;
+	clk-divider = <1>;
 	status = "okay";
 };
 
