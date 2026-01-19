@@ -127,6 +127,20 @@
 	TODO: led matrix driver
 */
 
+
+/*
+	TODO: removeme when i2c4 is fixed in HW
+*/
+	i2c4_bitbanged: gpio_i2c {
+		compatible = "gpio-i2c";
+		status = "okay";
+		clock-frequency = <I2C_BITRATE_STANDARD>;
+		sda-gpios = <&gpioh 10 (GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&gpioh 11 (GPIO_OPEN_DRAIN)>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
 	can_transceiver0: can-phy0 {
 		compatible = "nxp,tja1051", "can-transceiver-gpio";
 		enable-gpios = <&gpioi 11 GPIO_ACTIVE_LOW>;
@@ -219,7 +233,7 @@
 /* JDIGITAL */
 
 /*
-//// BUG on current HW
+//// BUG on current HW - replaced by bitbanged i2c
 &i2c4 {
 	pinctrl-0 = <&i2c4_scl_ph11 &i2c4_sda_ph12>;
 	pinctrl-names = "default";
