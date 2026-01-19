@@ -133,18 +133,6 @@
 		max-bitrate = <5000000>;
 		#phy-cells = <0>;
 	};
-
-	cannectivity: cannectivity {
-		compatible = "cannectivity";
-		timestamp-counter = <&counter0>;
-
-		channel0 {
-			compatible = "cannectivity-channel";
-			can-controller = <&fdcan2>;
-			state-led = <&blue_led>;
-			activity-leds = <&green_led>;
-		};
-	};
 };
 
 &timers2 {
@@ -331,7 +319,6 @@
 	status = "okay";
 };
 
-
 &fdcan3 {
 	pinctrl-0 = <&fdcan3_rx_pf7 &fdcan3_tx_pf6>;
 	pinctrl-names = "default";
@@ -345,12 +332,10 @@
 	st,prescaler = <10000>;
 	status = "okay";
 
-	counter16: counter {
+	pwm14: pwm {
 		status = "okay";
-		/*
 		pinctrl-0 = <&tim14_ch1_pa7>;
 		pinctrl-names = "default";
-		*/
 	};
 };
 
