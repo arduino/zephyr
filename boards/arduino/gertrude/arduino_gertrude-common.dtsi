@@ -135,8 +135,8 @@
 		compatible = "gpio-i2c";
 		status = "okay";
 		clock-frequency = <I2C_BITRATE_STANDARD>;
-		sda-gpios = <&gpioh 10 (GPIO_OPEN_DRAIN)>;
-		scl-gpios = <&gpioh 11 (GPIO_OPEN_DRAIN)>;
+		sda-gpios = <&gpioh 10 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+		scl-gpios = <&gpioh 11 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
