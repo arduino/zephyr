@@ -43,10 +43,16 @@ target_include_directories(boot_stage2 PUBLIC
   ${ZEPHYR_BASE}/include
   )
 
+if(CONFIG_PICOLIBC)
+  set(boot_specs "picolibc.specs")
+else()
+  set(boot_specs "nosys.specs")
+endif()
+
 target_link_options(boot_stage2 PRIVATE
   "-nostartfiles"
-  "--specs=nosys.specs"
-  "LINKER:--script=${boot_stage_dir}/boot_stage2.ld"
+  "--specs=${boot_specs}"
+  "-T${boot_stage_dir}/boot_stage2.ld"
   )
 
 # The second stage bootloader is compiled without kconfig definitions.
