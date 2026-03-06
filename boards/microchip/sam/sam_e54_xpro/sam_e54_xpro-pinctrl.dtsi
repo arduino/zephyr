@@ -85,4 +85,11 @@
 			pinmux = <PA2B_DAC_VOUT0>;
 		};
 	};
+
+	mdio_default: mdio_default {
+		group1 {
+			pinmux = <PC11L_GMAC_GMDC>,
+				 <PC12L_GMAC_GMDIO>;
+		};
+	};
 };
