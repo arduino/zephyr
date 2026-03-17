@@ -272,6 +272,7 @@ config GEN_IRQ_START_VECTOR
 	default 16
 
 config HARVARD
+	# redefined from arch/Kconfig, on ARC it is user-selectable
 	bool "Harvard Architecture"
 	help
 	  The ARC CPU can be configured to have two buses;

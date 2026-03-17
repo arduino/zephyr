@@ -1,0 +1,80 @@
+/*
+ * Copyright (c) 2026 ARDUINO SRL
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h>
+#include <dt-bindings/pinctrl/esp32s3-pinctrl.h>
+#include <zephyr/dt-bindings/pinctrl/esp32s3-gpio-sigmap.h>
+
+&pinctrl {
+	uart0_default: uart0_default {
+		group1 {
+			pinmux = <UART0_TX_GPIO43>;
+			output-high;
+		};
+
+		group2 {
+			pinmux = <UART0_RX_GPIO44>;
+			bias-pull-up;
+		};
+	};
+
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SDA_GPIO11>,
+				 <I2C0_SCL_GPIO12>;
+			bias-pull-up;
+			drive-open-drain;
+			output-high;
+		};
+	};
+
+	i2s0_default: i2s0_default { // TODO verify pinout
+		group1 {
+			pinmux = <I2S0_MCLK_GPIO10>,
+				 <I2S0_O_WS_GPIO17>,
+				 <I2S0_O_BCK_GPIO37>,
+				 <I2S0_O_SD_GPIO18>,
+				 <I2S0_I_SD_GPIO21>;
+		};
+	};
+
+	spim2_default: spim2_default {
+		group1 {
+			pinmux = <SPIM2_MISO_GPIO47>,
+				 <SPIM2_SCLK_GPIO48>,
+				 <SPIM2_CSEL_GPIO21>;
+		};
+
+		group2 {
+			pinmux = <SPIM2_MOSI_GPIO38>;
+			output-low;
+		};
+	};
+
+	spim3_default: spim3_default {
+		group1 {
+			pinmux = <SPIM3_MISO_GPIO6>,
+				 <SPIM3_SCLK_GPIO5>,
+				 <SPIM3_CSEL_GPIO8>;
+		};
+
+		group2 {
+			pinmux = <SPIM3_MOSI_GPIO7>;
+			output-low;
+		};
+	};
+
+	mcpwm0_default: mcpwm0_default {
+		group1 {
+			pinmux = <MCPWM0_OUT0A_GPIO9>;
+			output-enable;
+		};
+
+		group2 {
+			pinmux = <MCPWM0_OUT1A_GPIO3>;
+			output-enable;
+		};
+	};
+};

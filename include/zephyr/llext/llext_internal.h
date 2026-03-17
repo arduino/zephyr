@@ -105,6 +105,9 @@ int arch_elf_relocate_local(struct llext_loader *loader, struct llext *ext, cons
 int arch_elf_relocate_global(struct llext_loader *loader, struct llext *ext, const elf_rela_t *rel,
 			     const elf_sym_t *sym, uint8_t *rel_addr, const void *link_addr);
 
+uintptr_t arch_map_d2i(uintptr_t ptr);
+uintptr_t arch_map_i2d(uintptr_t ptr);
+
 #ifdef __cplusplus
 }
 #endif

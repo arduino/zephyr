@@ -55,16 +55,24 @@ config LLEXT_HEAP_DYNAMIC
 	  does not need LLEXT functionality any more, it should call llext_heap_uninit(),
 	  which releases control of the buffer back to the application.
 
+config LLEXT_SEPARATE_HEAPS
+	bool "llext separate instruction and data heaps"
+	depends on !LLEXT_HEAP_DYNAMIC
+	default y if HARVARD
+	help
+	  Allocate two separate heaps for data and instruction, this is default for
+	  Harvard architectures
+
 config LLEXT_HEAP_SIZE
 	int "llext heap memory size in kilobytes"
-	depends on !LLEXT_HEAP_DYNAMIC && !HARVARD
+	depends on !LLEXT_HEAP_DYNAMIC && !LLEXT_SEPARATE_HEAPS
 	default 8
 	help
 	  Heap size in kilobytes available to llext for dynamic allocation
 
 config LLEXT_INSTR_HEAP_SIZE
 	int "llext ICCM heap memory size in kilobytes"
-	depends on !LLEXT_HEAP_DYNAMIC && HARVARD
+	depends on !LLEXT_HEAP_DYNAMIC && LLEXT_SEPARATE_HEAPS
 	default 4
 	help
 	  ICCM heap size in kilobytes available to llext for dynamic allocation.
@@ -72,7 +80,7 @@ config LLEXT_INSTR_HEAP_SIZE
 
 config LLEXT_DATA_HEAP_SIZE
 	int "llext DCCM heap memory size in kilobytes"
-	depends on !LLEXT_HEAP_DYNAMIC && HARVARD
+	depends on !LLEXT_HEAP_DYNAMIC && LLEXT_SEPARATE_HEAPS
 	default 8
 	help
 	  DCCM heap size in kilobytes available to llext for dynamic allocation.
@@ -266,4 +274,11 @@ config LLEXT_EDK_USERSPACE_ONLY
 config LLEXT_EDK_PRESERVE_INPUT_FOLDER
 	bool "Don't delete the EDK source folder"
 
+config LLEXT_XTENSA_PLT
+	bool "Xtensa-specific PLT linking"
+	depends on LLEXT && XTENSA
+	default y
+	help
+	  Use xtensa llext plt function to perform relocation, setting it to 'n'
+	  to use the standard flow shared across all other platforms
 endif

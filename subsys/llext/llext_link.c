@@ -405,7 +405,6 @@ static int llext_link_plt(struct llext_loader *ldr, struct llext *ext, elf_shdr_
 
 int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_load_param *ldr_parm)
 {
-	uintptr_t sect_base = 0;
 	elf_rela_t rel = {0};
 	elf_word rel_cnt = 0;
 	const char *name;
@@ -452,7 +451,11 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 
 		rel_cnt = shdr->sh_size / shdr->sh_entsize;
 
-		name = llext_section_name(ldr, ext, shdr);
+		/* a relocation section with no symbol to relocate -> skip */
+		if (rel_cnt == 0) {
+			LOG_DBG("skipping relocation, no symbol to relocate");
+			continue;
+		}
 
 		/*
 		 * FIXME: The Xtensa port is currently using a different way of
@@ -460,8 +463,10 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 		 * arch-specific code paths. This code should be merged with
 		 * the logic below once the differences are resolved.
 		 */
-		if (IS_ENABLED(CONFIG_XTENSA)) {
+		if (IS_ENABLED(CONFIG_LLEXT_XTENSA_PLT)) {
 			elf_shdr_t *tgt;
+
+			name = llext_section_name(ldr, ext, shdr);
 
 			if (strcmp(name, ".rela.plt") == 0 ||
 			    strcmp(name, ".rela.dyn") == 0) {
@@ -487,8 +492,12 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 			continue;
 		}
 
+#if CONFIG_LLEXT_LOG_LEVEL > LOG_LEVEL_INF
+		name = llext_section_name(ldr, ext, shdr);
+
 		LOG_DBG("relocation section %s (%d) acting on section %d has %zd relocations",
 			name, i, shdr->sh_info, (size_t)rel_cnt);
+#endif /* CONFIG_LLEXT_LOG_LEVEL > LOG_LEVEL_INF */
 
 		enum llext_mem mem_idx = ldr->sect_map[shdr->sh_info].mem_idx;
 
@@ -496,8 +505,6 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 			LOG_ERR("Section %d not loaded in any memory region", shdr->sh_info);
 			return -ENOEXEC;
 		}
-
-		sect_base = (uintptr_t) llext_loaded_sect_ptr(ldr, ext, shdr->sh_info);
 
 		for (int j = 0; j < rel_cnt; j++) {
 			/* get each relocation entry */

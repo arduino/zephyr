@@ -1,0 +1,168 @@
+/*
+ * Copyright (c) 2026 ARDUINO SRL
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <espressif/esp32s3/esp32s3_wroom_n16r8.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/pinctrl/esp32s3-pinctrl.h>
+// #include <espressif/partitions_0x0_amp_16M.dtsi>
+#include "arduino_nano_connector.dtsi"
+#include "arduino_nano_esp32-pinctrl.dtsi"
+
+/ {
+	model = "Arduino Nano ESP32";
+	compatible = "espressif,esp32s3";
+
+	aliases {
+		i2c-0 = &i2c0;
+		watchdog0 = &wdt0;
+		led0 = &led0;
+		led1 = &red_led;
+		led2 = &green_led;
+		led3 = &blue_led;
+		sdhc0 = &sdhc0;
+	};
+
+	chosen {
+		zephyr,sram = &sram1;
+		zephyr,console = &usb_serial;
+		zephyr,shell-uart = &usb_serial;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,bt-hci = &esp32_bt_hci;
+		zephyr,sdhc = &sdhc0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led0: led_0 {
+			gpios = <&gpio1 48 GPIO_ACTIVE_HIGH>;
+			label = "LED";
+		};
+
+		red_led: led_1 {
+			gpios = <&gpio1 46 GPIO_ACTIVE_LOW>;
+			label = "Red LED";
+		};
+
+		green_led: led_2 {
+			gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+			label = "Green LED";
+		};
+
+		blue_led: led_3 {
+			gpios = <&gpio1 45 GPIO_ACTIVE_LOW>;
+			label = "Blue LED";
+		};
+	};
+};
+
+&dma {
+	status = "okay";
+};
+
+&adc0 {
+	status = "okay";
+};
+
+&adc1 {
+	status = "okay";
+};
+
+&i2c0 {
+	clock-frequency = <I2C_BITRATE_STANDARD>;
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+};
+
+&trng0 {
+	status = "okay";
+};
+
+&ipm0 {
+	status = "okay";
+};
+
+&i2s0 {
+	status = "okay";
+	pinctrl-0 = <&i2s0_default>;
+	pinctrl-names = "default";
+};
+
+&spi2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&spim2_default>;
+	pinctrl-names = "default";
+};
+
+&spi3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	pinctrl-0 = <&spim3_default>;
+	pinctrl-names = "default";
+};
+
+
+&usb_serial {
+	status = "okay";
+};
+
+&timer0 {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&timer2 {
+	status = "okay";
+};
+
+&timer3 {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&wdt0 {
+	status = "okay";
+};
+
+&esp32_bt_hci {
+	status = "okay";
+};
+
+&wifi {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+};
+
+&mcpwm0 {
+	status = "okay";
+	pinctrl-0 = <&mcpwm0_default>;
+	pinctrl-names = "default";
+	prescale = <255>;
+	prescale-timer0 = <100>;
+	prescale-timer1 = <100>;
+};
