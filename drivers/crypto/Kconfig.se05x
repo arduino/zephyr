@@ -1,0 +1,10 @@
+
+
+config CRYPTO_SE05X
+	bool "NXP SE05X support"
+	default y
+	depends on PLUGANDTRUST
+	depends on DT_HAS_NXP_SE05X_ENABLED
+	select I2C
+	help
+	  Enable NXP SE05X secure element support support

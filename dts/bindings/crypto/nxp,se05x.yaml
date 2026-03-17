@@ -1,0 +1,16 @@
+# Copyright (c) 2026 ARDUINO SRL
+# SPDX-License-Identifier: Apache-2.0
+
+description: "NXP Crypto SE05X"
+
+compatible: "nxp,se05x"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  se05x,en-gpios:
+    type: phandle-array
+    description: Enable gpio
