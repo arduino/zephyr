@@ -1,0 +1,22 @@
+identifier: arduino_nano_esp32/esp32s3/procpu
+name: Arduino Nano ESP32
+type: mcu
+arch: xtensa
+toolchain:
+  - zephyr
+supported:
+  - gpio
+  - uart
+  - i2c
+  - spi
+  - can
+  - counter
+  - watchdog
+  - entropy
+  - pwm
+  - sdhc
+  - dma
+  - input
+  - video
+  - crypto
+vendor: espressif
