@@ -309,6 +309,12 @@ manifest:
       path: modules/crypto/mbedtls
       groups:
         - crypto
+    - name: plugandtrust
+      revision: 4a328823122a0ca33aac1aeab9bbbc18f6cdc337
+      path: modules/crypto/plugandtrust
+      url: https://github.com/andreagilardoni/nano-package
+      groups:
+        - crypto
     - name: mcuboot
       revision: 4eba8087fa606db801455f14d185255bc8c49467
       path: bootloader/mcuboot
