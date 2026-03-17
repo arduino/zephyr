@@ -180,6 +180,13 @@
 				pf1550,vbus-current-limit-microamp = <1500000>;
 			};
 		};
+
+		se05x: se05x@48 {
+			status = "okay";
+			reg = <0x48>;
+			compatible = "nxp,se05x";
+			se05x,en-gpios = <&ioport0 10 GPIO_ACTIVE_HIGH>;
+		};
 	};
 };
 
