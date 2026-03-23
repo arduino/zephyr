@@ -26,6 +26,7 @@
 		zephyr,shell-uart = &uart9;
 		zephyr,entropy = &trng;
 		zephyr,bt-hci = &bt_hci_uart;
+		zephyr,canbus = &canfd0;
 	};
 
 	leds {
@@ -400,6 +401,23 @@
 		clock-frequency = <DT_FREQ_M(25)>;
 		#clock-cells = <1>;
 		pwms = <&pwm6 1 PWM_KHZ(25000) PWM_POLARITY_NORMAL>;
+	};
+};
+
+&canfdclk {
+	clocks = <&pll>;
+	div = <5>;
+};
+
+&canfd_global {
+	canfd0 {
+		pinctrl-0 = <&canfd0_default>;
+		pinctrl-names = "default";
+		rx-max-filters = <16>;
+
+		can-transceiver {
+			max-bitrate = <5000000>;
+		};
 	};
 };
 
