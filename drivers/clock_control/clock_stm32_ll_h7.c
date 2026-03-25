@@ -266,6 +266,10 @@ static int32_t prepare_regulator_voltage_scale(void)
 #else
 	while (LL_PWR_IsActiveFlag_VOS() == 0) {
 #endif
+		/* arch_nop() prevents a tight polling loop from causing a high
+		 * power consumption peak that can hang the board during VOS0 activation.
+		 */
+		arch_nop();
 	}
 
 	return 0;
