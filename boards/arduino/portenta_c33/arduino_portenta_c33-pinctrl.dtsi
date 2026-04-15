@@ -167,6 +167,14 @@
 		};
 	};
 
+	canfd0_default: canfd0_default {
+		group1 {
+			/* CAN0 RX: P2_2, CAN0 TX: P2_3 */
+			psels = <RA_PSEL(RA_PSEL_CANFD, 2, 2)>,
+				<RA_PSEL(RA_PSEL_CANFD, 2, 3)>;
+		};
+	};
+
 	pwm7_default: pwm7_default {
 		group1 {
 			psels = <RA_PSEL(RA_PSEL_GPT1, 3, 3)>;
