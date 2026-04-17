@@ -12,6 +12,7 @@ ram: 512
 supported:
   - can
   - clock_control
+  - entropy
   - gpio
   - i2c
   - pinctrl
