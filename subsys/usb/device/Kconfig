@@ -57,7 +57,7 @@ config USB_CONFIGURATION_STRING_DESC_ENABLE
 
 if USB_CONFIGURATION_STRING_DESC_ENABLE
 
-config USB_CONFIGURATION_STRING_DESC
+config USB_CONFIGURATION_STRING_DESC_DEFAULT
 	string "USB configuration string descriptor"
 	default "Default Configuration"
 	help
