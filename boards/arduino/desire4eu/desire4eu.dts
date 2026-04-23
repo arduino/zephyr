@@ -25,7 +25,7 @@
 		compatible = "gpio-leds";
 
 		blue_led: led {
-			gpios = <&gpiob 0 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;
 			label = "User LED";
 		};
 	};
@@ -37,6 +37,10 @@
 		die-temp0 = &die_temp;
 		volt-sensor0 = &vref;
 	};
+};
+
+&clk_lsi {
+	status = "okay";
 };
 
 &clk_hsi {
@@ -155,5 +159,7 @@ zephyr_udc0: &usb {
 	status = "okay";
 	cdc_acm_uart0: cdc_acm_uart0 {
 		compatible = "zephyr,cdc-acm-uart";
+		tx-fifo-size = <256>;
+		rx-fifo-size = <256>;
 	};
 };
