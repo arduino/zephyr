@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <st/h5/stm32h5f5.dtsi>
+#include <st/h5/stm32h5f5Xj.dtsi>
 #include <st/h5/stm32h5f5zjtx-pinctrl.dtsi>
 #include <zephyr/dt-bindings/sensor/qdec_stm32.h>
 #include <zephyr/dt-bindings/led/led.h>
@@ -398,7 +398,6 @@ zephyr_udc0: &usbotg_hs {
 };
 
 &otghs_phy {
-	clock-reference = "SYSCFG_OTG_HS_PHY_CLK_16MHz";
 	status = "okay";
 };
 
