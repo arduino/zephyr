@@ -1,0 +1,16 @@
+description: Microchip G3 series of Flash
+
+compatible: "microchip,flash-g3"
+
+include: soc-nv-flash.yaml
+
+properties:
+  write-block-size-quad-dw:
+    type: int
+    description: address alignment required by quad double word flash write operations
+  write-block-size-row:
+    type: int
+    description: address alignment required by row flash write operations
+  unimplemented-region:
+    type: array
+    description: array of unimplemented regions in the given flash area

@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Microchip Technology Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Microchip flash controller
+
+compatible: "microchip,nvmctrl-g3"
+
+include: flash-controller.yaml
+
+properties:
+  clock-parent:
+    type: phandle
+    description: Reference to the clock node
