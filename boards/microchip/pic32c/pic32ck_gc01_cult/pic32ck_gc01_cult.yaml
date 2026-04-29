@@ -16,4 +16,5 @@ supported:
   - pinctrl
   - rtc
   - uart
+  - watchdog
 vendor: microchip
