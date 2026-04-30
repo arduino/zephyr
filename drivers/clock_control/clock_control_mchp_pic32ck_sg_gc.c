@@ -905,7 +905,7 @@ static int clock_mchp_on(const struct device *dev, clock_control_subsys_t sys)
 	status = clock_mchp_get_status(dev, sys);
 	if (status == CLOCK_CONTROL_STATUS_ON) {
 		/* clock is already on. */
-		LOG_ERR("%s: Clock already enabled", __func__);
+		LOG_INF("%s: Clock already enabled", __func__);
 		return -EALREADY;
 	}
 
