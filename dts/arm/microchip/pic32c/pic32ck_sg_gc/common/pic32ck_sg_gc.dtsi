@@ -101,6 +101,19 @@
 			};
 		};
 
+		rtc: rtc@44018000 {
+			compatible = "microchip,rtc-g1";
+			reg = <0x44018000 0x70>;
+			interrupts = <12 0>;
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_RTC_APB>,
+				 <&rtcclock CLOCK_MCHP_RTC_ID>;
+			clock-names = "mclk", "rtcclk";
+			prescaler = <1>;
+			alarms-count = <2>;
+			cal-constant = <1048576>;
+			status = "disabled";
+		};
+
 		pinctrl: pinctrl@44800000 {
 			compatible = "microchip,port-g1-pinctrl";
 			#address-cells = <1>;
