@@ -22,6 +22,7 @@
 		zephyr,code-partition = &code_partition;
 		zephyr,console = &sercom5;
 		zephyr,shell-uart = &sercom5;
+		zephyr,canbus = &can0;
 	};
 
 	aliases {
@@ -218,6 +219,12 @@
 	gclkperiph: gclkperiph {
 		compatible = "microchip,pic32ck-sg-gc-gclkperiph";
 		#clock-cells = <1>;
+
+		can0 {
+			subsystem = <CLOCK_MCHP_GCLKPERIPH_ID_CAN0>;
+			gclkperiph-src = "gclk0";
+			gclkperiph-en = <1>;
+		};
 	};
 
 	mclkcpu: mclkcpu {
@@ -269,6 +276,12 @@
 	adc-div-ratio = <1>;
 	adc-wkup-clock-count = <6>;
 	pinctrl-0 = <&adc0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&can0 {
+	pinctrl-0 = <&can0_default>;
 	pinctrl-names = "default";
 	status = "okay";
 };

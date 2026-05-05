@@ -27,4 +27,12 @@
 				 <PA24C_SERCOM5_PAD0>;
 		};
 	};
+
+	/* CAN0 pinctrl - PB16=TX, PB17=RX per user guide */
+	can0_default: can0_default {
+		group1 {
+			pinmux = <PB16H_CAN0_TX>,
+				 <PB17H_CAN0_RX>;
+		};
+	};
 };
