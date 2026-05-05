@@ -1,0 +1,54 @@
+# Copyright (c) 2026 Microchip Technology Inc.
+# SPDX-License-Identifier: Apache-2.0
+title: Microchip M_CAN FD Controller (Group 1)
+
+description: |
+  Microchip M_CAN CAN FD controller
+
+  Unified binding for all Microchip MCUs using the Bosch M_CAN IP core
+  (ISO 11898-1:2015, CAN 2.0 part A/B, CAN FD).
+
+  Supported families:
+    - PIC32CK SG/GC series
+
+compatible: "microchip,mcan-g1"
+
+include:
+  - name: bosch,m_can-base.yaml
+  - name: pinctrl-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+    description: |
+      Phandles to the clock controllers. Must provide two clocks:
+        1. MCLK (AHB bus clock) - required for bus access
+        2. GCLK (peripheral clock) - core clock for CAN timing
+
+  clock-names:
+    required: true
+    description: |
+      Clock names for the CAN peripheral. Must include:
+        - "mclk" for the AHB bus clock (MCLK peripheral)
+        - "gclk" for the peripheral clock (GCLK peripheral)
+
+examples:
+  - |
+    can0: can@deadbeef {
+        compatible = "microchip,mcan-g1";
+        reg = <0xdeadbeef 0x100>;
+        interrupts = <143 0>;
+        clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_CAN0_AHB>,
+                 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_CAN0>;
+        clock-names = "mclk", "gclk";
+        bosch,mram-cfg = <0x0 28 8 3 3 0 3 3>;
+        pinctrl-0 = <&can0_default>;
+        pinctrl-names = "default";
+        status = "disabled";
+    };
