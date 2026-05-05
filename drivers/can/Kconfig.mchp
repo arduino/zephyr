@@ -1,0 +1,13 @@
+# Microchip M_CAN CAN configuration options
+# Copyright (c) 2026 Microchip Technology Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+config CAN_MCHP_MCAN_G1
+	bool "Microchip M_CAN G1 CAN driver"
+	default y
+	depends on DT_HAS_MICROCHIP_MCAN_G1_ENABLED
+	select CAN_MCAN
+	help
+	  Enable CAN support for Microchip MCUs using the Bosch M_CAN IP core.
+	  This driver supports:
+	    - PIC32CK SG/GC series
