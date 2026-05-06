@@ -21,6 +21,13 @@
 		};
 	};
 
+	sercom4_i2c_default: sercom4_i2c_default {
+		group1 {
+			pinmux = <PB9C_SERCOM4_PAD0>,
+				 <PB10C_SERCOM4_PAD1>;
+		};
+	};
+
 	sercom5_uart_default: sercom5_uart_default {
 		group1 {
 			pinmux = <PA25C_SERCOM5_PAD1>,

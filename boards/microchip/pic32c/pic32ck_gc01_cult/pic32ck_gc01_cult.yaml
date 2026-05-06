@@ -13,6 +13,7 @@ supported:
   - adc
   - clock_control
   - gpio
+  - i2c
   - pinctrl
   - rtc
   - uart
