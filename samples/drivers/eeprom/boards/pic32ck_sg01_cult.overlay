@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2026 Microchip Technology Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&sercom4 {
+	eeprom0: eeprom@56 {
+		compatible = "atmel,at24";
+		reg = <0x56>;
+		size = <256>;
+		pagesize = <16>;
+		address-width = <8>;
+		timeout = <5>;
+	};
+};
+
+/ {
+	aliases {
+		eeprom-0 = &eeprom0;
+	};
+};
