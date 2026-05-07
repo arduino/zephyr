@@ -13,6 +13,7 @@ supported:
   - can
   - clock_control
   - gpio
+  - i2c
   - pinctrl
   - spi
   - uart
