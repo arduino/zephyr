@@ -222,6 +222,20 @@
 			clock-names = "mclk", "gclk";
 			status = "disabled";
 		};
+
+		adc0: adc@45010000 {
+			compatible = "microchip,adc-g2";
+			reg = <0x45010000 0x5b>, <0xa007000 0x69>;
+			reg-names = "adc", "fuses";
+			interrupts = <132 0>, <133 0>;
+			interrupt-names = "global", "core0";
+			num-channels = <14>;
+			#io-channel-cells = <1>;
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_ADC_APB>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_ADC>;
+			clock-names = "mclk", "gclk";
+			status = "disabled";
+		};
 	};
 };
 
