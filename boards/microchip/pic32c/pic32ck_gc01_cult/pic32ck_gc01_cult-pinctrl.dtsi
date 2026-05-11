@@ -124,4 +124,16 @@
 				 <PB10C_SERCOM4_PAD1>;
 		};
 	};
+
+	pinctrl_mikrobus_pwm_default: pinctrl_mikrobus_pwm_default {
+		group1 {
+			pinmux = <PC1F_TCC6_WO0>;
+		};
+	};
+
+	tcc7_pwm_default: tcc7_pwm_default {
+		group1 {
+			pinmux = <PB25F_TCC7_WO0>;
+		};
+	};
 };
