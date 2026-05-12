@@ -1,0 +1,30 @@
+/*
+ * Copyright (c) 2026 Microchip Technology Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&sercom4 {
+	/* Internal loopback */
+	dipo = <0>;
+	dopo = <0>;
+	compatible = "microchip,sercom-g1-spi";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-0 = <&sercom4_spi_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&porta 0 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+	};
+};
