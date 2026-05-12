@@ -16,3 +16,6 @@ zephyr_library_sources_ifdef(CONFIG_AUDIO_CODEC_CS43L22 cs43l22.c)
 zephyr_library_sources_ifdef(CONFIG_AUDIO_CODEC_PCM1681 pcm1681.c)
 zephyr_library_sources_ifdef(CONFIG_AUDIO_CODEC_MAX98091 max98091.c)
 zephyr_library_sources_ifdef(CONFIG_AUDIO_DMIC_AMBIQ_PDM dmic_ambiq_pdm.c)
+zephyr_library_sources_ifdef(CONFIG_AUDIO_DMIC_RPI_PICO_PIO
+			     dmic_rp2040_pio.c
+			     OpenPDMFilter.c)
