@@ -13,6 +13,7 @@ family:
     - name: pic32ck1012gc01100
     - name: pic32ck1025gc01064
     - name: pic32ck1025gc01100
+    - name: pic32ck1025gc01144
     - name: pic32ck2051gc01064
     - name: pic32ck2051gc01100
     - name: pic32ck2051gc01144

@@ -25,6 +25,15 @@
 #include "pic32ck1025gc01064.h"
 #elif defined(CONFIG_SOC_PIC32CK1025GC01100)
 #include "pic32ck1025gc01100.h"
+#elif defined(CONFIG_SOC_PIC32CK1025GC01144)
+/*
+ * The Microchip HAL does not ship a dedicated CMSIS header for the
+ * 1025/144 SKU. The CMSIS-level definitions (NVIC, MPU, SCB, ...) are
+ * identical across flash variants in the same package, so we reuse the
+ * 2051/144 header. Flash size is taken from the devicetree, not from
+ * this header.
+ */
+#include "pic32ck2051gc01144.h"
 #elif defined(CONFIG_SOC_PIC32CK2051GC01064)
 #include "pic32ck2051gc01064.h"
 #elif defined(CONFIG_SOC_PIC32CK2051GC01100)

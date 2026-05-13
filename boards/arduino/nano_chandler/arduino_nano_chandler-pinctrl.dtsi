@@ -1,0 +1,42 @@
+/*
+ * Copyright (c) 2026 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pic32c/pic32ck_sg_gc/pic32ck_gc01/pic32ck2051gc01144-pinctrl.h>
+
+&pinctrl {
+	/* UART0 -> RS485 transceiver (THVD2410): TX/RX + RTS used as DE/RE */
+	sercom0_uart_default: sercom0_uart_default {
+		group1 {
+			pinmux = <PD6C_SERCOM0_PAD0>,	/* TX  */
+				 <PD7C_SERCOM0_PAD1>,	/* RX  */
+				 <PD5C_SERCOM0_PAD2>;	/* RTS */
+		};
+	};
+
+	/* UART1 -> user header (J3). Arduino `Serial`. */
+	sercom1_uart_default: sercom1_uart_default {
+		group1 {
+			pinmux = <PD8C_SERCOM1_PAD0>,	/* TX */
+				 <PD9C_SERCOM1_PAD1>;	/* RX */
+		};
+	};
+
+	/* UART6 -> user header (J4). */
+	sercom6_uart_default: sercom6_uart_default {
+		group1 {
+			pinmux = <PA0D_SERCOM6_PAD0>,	/* TX */
+				 <PA1D_SERCOM6_PAD1>;	/* RX */
+		};
+	};
+
+	/* USB FS device -> user header pins 2/4 (D+ = PD04, D- = PD03). */
+	usb_dc_default: usb_dc_default {
+		group1 {
+			pinmux = <PD4H_USB_DP>,
+				 <PD3H_USB_DM>;
+		};
+	};
+};

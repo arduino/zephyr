@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Arduino SA
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_ARDUINO_NANO_CHANDLER
+	select SOC_PIC32CK1025GC01144

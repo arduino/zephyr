@@ -1,0 +1,348 @@
+/*
+ * Copyright (c) 2026 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <microchip/pic32c/pic32ck_sg_gc/pic32ck_gc01/pic32ck1025gc01144.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include "arduino_nano_chandler-pinctrl.dtsi"
+
+/ {
+	model = "Arduino Nano Chandler";
+	compatible = "arduino,nano-chandler", "microchip,pic32ck1025gc01144";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash1;
+		zephyr,code-partition = &code_partition;
+		/* Console/shell on UART6 (SERCOM6), exposed on the user header (J4). */
+		zephyr,console = &sercom1;
+		zephyr,shell-uart = &sercom1;
+	};
+
+	aliases {
+		led0 = &led_builtin;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_builtin: led_builtin {
+			gpios = <&portb 16 GPIO_ACTIVE_HIGH>;
+			label = "LED_BUILTIN";
+		};
+
+		led_red: led_red {
+			gpios = <&portc 15 GPIO_ACTIVE_HIGH>;
+			label = "LED_RED";
+		};
+
+		led_green: led_green {
+			gpios = <&portc 16 GPIO_ACTIVE_HIGH>;
+			label = "LED_GREEN";
+		};
+
+		led_blue: led_blue {
+			gpios = <&portc 17 GPIO_ACTIVE_HIGH>;
+			label = "LED_BLUE";
+		};
+	};
+};
+
+/*
+ * The flash driver binds to the first soc-nv-flash instance; strip the
+ * compatible from the boot flash so the program flash (flash1) is picked.
+ * ROMSTART_REGION_* only use the flash0 nodelabel reg, which is unaffected.
+ */
+&flash0 {
+	/delete-property/ compatible;
+};
+
+/*
+ * FCW/FCR flash controller ("NVMCTRL G3" driver). Note the pic32ck register
+ * bases are swapped with respect to pic32cz_ca: FCW @ 0x44004000, FCR @
+ * 0x44002000 (FCW_IRQn = 2).
+ *
+ * PIC32CK1025GC01144: 1 MB program flash, split 80/20:
+ * loader 816 KiB / sketch 208 KiB (4 KiB erase-block aligned).
+ */
+&nvmctrl {
+			compatible = "microchip,nvmctrl-g3";
+			reg = <0x44004000 0x7c>, <0x44002000 0x60>;
+			reg-names = "fcw", "fcr";
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_FCW_AHB>,
+				 <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_FCW_APB>,
+				 <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_FCR_AHB>,
+				 <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_FCR_APB>;
+			clock-names = "mclk-fcw-ahb", "mclk-fcw-apb",
+				      "mclk-fcr-ahb", "mclk-fcr-apb";
+			clock-parent = <&clock>;
+			interrupts = <2 0>;
+			interrupt-names = "fcw";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			flash1: flash@c000000 {
+				compatible = "microchip,flash-g3", "soc-nv-flash";
+				reg = <0x0c000000 DT_SIZE_M(1)>;
+				write-block-size = <8>;
+				write-block-size-quad-dw = <32>;
+				write-block-size-row = <DT_SIZE_K(1)>;
+				erase-block-size = <DT_SIZE_K(4)>;
+				/* gap between boot flash end and program flash start */
+				unimplemented-region = <0x08020000 0x0bffffff>;
+
+				partitions {
+					compatible = "fixed-partitions";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					code_partition: partition@0 {
+						label = "loader";
+						reg = <0x0 DT_SIZE_K(816)>;
+					};
+
+					user_sketch: partition@cc000 {
+						label = "user_sketch";
+						reg = <0xcc000 DT_SIZE_K(208)>;
+					};
+				};
+			};
+};
+
+&cpu0 {
+	clock-frequency = <120000000>;
+};
+
+&clock {
+	compatible = "microchip,pic32ck-sg-gc-clock";
+
+	xosc: xosc {
+		compatible = "microchip,pic32ck-sg-gc-xosc";
+		xosc-enable = <1>;
+		xosc-xtal-en = <1>;
+		xosc-auto-gain-control-loop-en = <0>;
+		xosc-clock-switch-back-en = <0>;
+		xosc-frequency = <16000000>;
+		xosc-on-demand-en = <0>;
+		xosc-startup-time = <500000>;
+		xosc-clock-failure-detection-en = <0>;
+		xosc-safe-clock-frequency = <48>;
+		xosc-usbhs-ref-clock-div = "usbhs-pll-ref-xosc-clock-disabled";
+	};
+
+	xosc32k: xosc32k {
+		compatible = "microchip,pic32ck-sg-gc-xosc32k";
+		xosc32k-enable = <0>;
+		xosc32k-xtal-en = <0>;
+		xosc32k-frequency = <32768>;
+		xosc32k-on-demand-en = <0>;
+		xosc32k-control-gain-mode = "lower-gain-mode-value";
+		xosc32k-servo-loop-en = <1>;
+		xosc32k-gain-boost = <1>;
+		xosc32k-startup-time = <1000>;
+		xosc32k-rtc-clk-selection-en = <1>;
+		xosc32k-cfd-en = <0>;
+		xosc32k-cfd-prescaler = <0>;
+		xosc32k-cfd-switchback-en = <1>;
+	};
+
+	dfll48m: dfll48m {
+		compatible = "microchip,pic32ck-sg-gc-dfll48m";
+		dfll48m-src-gclk = "gclk1";
+		dfll48m-enable = <1>;
+		dfll48m-closed-loop-en = <0>;
+		dfll48m-on-demand-en = <0>;
+		dfll48m-usb-clock-recovery-mode = <0>;
+		dfll48m-wait-lock-en = <0>;
+		dfll48m-quick-lock-dis = <0>;
+		dfll48m-chill-cycle-dis = <0>;
+		dfll48m-lose-lock-en = <0>;
+		dfll48m-stable-freq-en = <0>;
+		dfll48m-tune-max-step = <1>;
+		dfll48m-multiply-factor = <1>;
+	};
+
+	pll: pll {
+		compatible = "microchip,pic32ck-sg-gc-pll";
+
+		pll0: pll0 {
+			compatible = "microchip,pic32ck-sg-gc-pllchild";
+
+			subsystem = <CLOCK_MCHP_PLL_ID_PLL0>;
+			pll-enable = <1>;
+			pll-on-demand-en = <0>;
+			pll-bandwidth-sel = "bwsel-1";
+			pll-src = "xosc";
+			pll-ref-division-factor = <4>;
+			pll-feedback-divider-factor = <240>;
+			pll-freq-division-factor-int = <0>;
+			pll-freq-division-factor-rem = <0>;
+
+			pll0out0: pll0out0 {
+				compatible = "microchip,pic32ck-sg-gc-pll0out";
+
+				subsystem = <CLOCK_MCHP_PLL0_ID_OUT0>;
+				pll-output-division-factor = <8>;
+				pll-output-en = <1>;
+			};
+
+			pll0out1: pll0out1 {
+				compatible = "microchip,pic32ck-sg-gc-pll0out";
+
+				subsystem = <CLOCK_MCHP_PLL0_ID_OUT1>;
+				/* 960 MHz VCO / 20 = 48 MHz for USB FS */
+				pll-output-division-factor = <20>;
+				pll-output-en = <1>;
+			};
+		};
+	};
+
+	gclkgen: gclkgen {
+		compatible = "microchip,pic32ck-sg-gc-gclkgen";
+
+		gclkgen0 {
+			subsystem = <CLOCK_MCHP_GCLKGEN_ID_GEN0>;
+			gclkgen-en = <1>;
+			gclkgen-run-in-standby-en = <0>;
+			gclkgen-ext-input-frequency = <0>;
+			gclkgen-src = "pll0_0";
+			gclkgen-output-off-val = "logic-level-0";
+			gclkgen-input-frequency = <0>;
+			gclkgen-div-select = "div-factor";
+			gclkgen-div-factor = <1>;
+			gclkgen-duty-50-50-en = <0>;
+			gclkgen-out-clock-signal = <0>;
+		};
+
+		gclkgen1 {
+			subsystem = <CLOCK_MCHP_GCLKGEN_ID_GEN1>;
+			gclkgen-en = <1>;
+			gclkgen-run-in-standby-en = <0>;
+			gclkgen-ext-input-frequency = <0>;
+			gclkgen-src = "pll0_0";
+			gclkgen-output-off-val = "logic-level-0";
+			gclkgen-input-frequency = <0>;
+			gclkgen-div-select = "div-factor";
+			gclkgen-div-factor = <2>;
+			gclkgen-duty-50-50-en = <0>;
+			gclkgen-out-clock-signal = <0>;
+		};
+
+		/* 48 MHz from PLL0_OUT1, dedicated to USB FS */
+		gclkgen2 {
+			subsystem = <CLOCK_MCHP_GCLKGEN_ID_GEN2>;
+			gclkgen-en = <1>;
+			gclkgen-run-in-standby-en = <0>;
+			gclkgen-ext-input-frequency = <0>;
+			gclkgen-src = "pll0_1";
+			gclkgen-output-off-val = "logic-level-0";
+			gclkgen-input-frequency = <0>;
+			gclkgen-div-select = "div-factor";
+			gclkgen-div-factor = <1>;
+			gclkgen-duty-50-50-en = <0>;
+			gclkgen-out-clock-signal = <0>;
+		};
+	};
+
+	gclkperiph: gclkperiph {
+		compatible = "microchip,pic32ck-sg-gc-gclkperiph";
+		#clock-cells = <1>;
+
+		usb0 {
+			subsystem = <CLOCK_MCHP_GCLKPERIPH_ID_USB>;
+			gclkperiph-src = "gclk2";
+			gclkperiph-en = <1>;
+		};
+	};
+
+	mclkcpu: mclkcpu {
+		compatible = "microchip,pic32ck-sg-gc-mclkcpu";
+		mclk-div = "DIV1";
+	};
+
+	mclkperiph: mclkperiph {
+		compatible = "microchip,pic32ck-sg-gc-mclkperiph";
+		#clock-cells = <1>;
+
+		usb0 {
+			subsystem = <CLOCK_MCHP_MCLKPERIPH_ID_USB_APB>;
+			mclk-en = <1>;
+		};
+	};
+};
+
+&porta {
+	status = "okay";
+};
+
+&portb {
+	status = "okay";
+};
+
+&portc {
+	status = "okay";
+};
+
+&portd {
+	status = "okay";
+};
+
+/* UART0 -> RS485 PHY (THVD2410). TX=PD06/PAD0, RX=PD07/PAD1, RTS(DE)=PD05/PAD2. */
+&sercom0 {
+	compatible = "microchip,sercom-g1-uart";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	current-speed = <115200>;
+	data-bits = <8>;
+	parity = "none";
+	stop-bits = "1";
+	rxpo = <1>;	/* RX = PAD1 */
+	txpo = <3>;	/* TX = PAD0, RTS = PAD2, no CTS */
+	pinctrl-0 = <&sercom0_uart_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* UART1 -> user header (J3). Arduino `Serial` / Zephyr console. TX=PD08, RX=PD09. */
+&sercom1 {
+	compatible = "microchip,sercom-g1-uart";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	current-speed = <115200>;
+	data-bits = <8>;
+	parity = "none";
+	stop-bits = "1";
+	rxpo = <1>;	/* RX = PAD1 */
+	txpo = <0>;	/* TX = PAD0 */
+	pinctrl-0 = <&sercom1_uart_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* UART6 -> user header (J4). TX=PA00, RX=PA01 (mux d). */
+&sercom6 {
+	compatible = "microchip,sercom-g1-uart";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	current-speed = <115200>;
+	data-bits = <8>;
+	parity = "none";
+	stop-bits = "1";
+	rxpo = <1>;	/* RX = PAD1 */
+	txpo = <0>;	/* TX = PAD0 */
+	pinctrl-0 = <&sercom6_uart_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* USB FS device -> user header pins 2/4 (D+ = PD04, D- = PD03). */
+zephyr_udc0: &usb0 {
+	pinctrl-0 = <&usb_dc_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+

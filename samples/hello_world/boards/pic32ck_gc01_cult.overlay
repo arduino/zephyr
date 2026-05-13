@@ -1,0 +1,25 @@
+/ {
+	chosen {
+		zephyr,console = &sercom1;
+		zephyr,shell-uart = &sercom1;
+	};
+};
+
+&sercom5 {
+	status = "disabled";
+};
+
+&sercom1 {
+	compatible = "microchip,sercom-g1-uart";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	current-speed = <115200>;
+	data-bits = <8>;
+	parity = "none";
+	stop-bits = "1";
+	rxpo = <1>;
+	txpo = <0>;
+	pinctrl-0 = <&sercom1_uart_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
