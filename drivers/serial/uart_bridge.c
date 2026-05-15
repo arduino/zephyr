@@ -9,8 +9,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/ring_buffer.h>
+#include <zephyr/sys/util.h>
 #include <zephyr/drivers/uart/uart_bridge.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/drivers/gpio.h>
 
 #define DT_DRV_COMPAT zephyr_uart_bridge
 
@@ -21,6 +23,7 @@ LOG_MODULE_REGISTER(uart_bridge, LOG_LEVEL_INF);
 
 struct uart_bridge_config {
 	const struct device *peer_dev[2];
+	struct gpio_dt_spec leds[2];
 };
 
 struct uart_bridge_peer_data {
@@ -29,8 +32,16 @@ struct uart_bridge_peer_data {
 	bool paused;
 };
 
+struct uart_bridge_led_work_ctx {
+	struct k_work_delayable work;
+	const struct uart_bridge_config *cfg;
+	uint8_t led_idx;
+};
+
 struct uart_bridge_data {
 	struct uart_bridge_peer_data peer[2];
+	struct uart_bridge_led_work_ctx tx_led_work;
+	struct uart_bridge_led_work_ctx rx_led_work;
 };
 
 static const struct device *uart_bridge_get_peer(const struct device *dev,
@@ -78,6 +89,22 @@ void uart_bridge_settings_update(const struct device *dev,
 
 	LOG_INF("uart settings: baudrate=%d parity=%d dev=%s",
 		cfg.baudrate, cfg.parity, bridge_dev->name);
+}
+
+/* Turns the activity LED back off; scheduled with a delay so the caller
+ * never blocks the workqueue it runs on (shared with e.g. CDC-ACM byte pump).
+ */
+static void uart_bridge_led_work_handler(struct k_work *work)
+{
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+	struct uart_bridge_led_work_ctx *ctx =
+		CONTAINER_OF(dwork, struct uart_bridge_led_work_ctx, work);
+
+	if (ctx->cfg->leds[ctx->led_idx].port == NULL) {
+		return;
+	}
+
+	gpio_pin_set_dt(&ctx->cfg->leds[ctx->led_idx], 0);
 }
 
 static uint8_t uart_bridge_get_idx(const struct device *dev,
@@ -171,6 +198,20 @@ static void uart_bridge_handle_tx(const struct device *dev,
 		return;
 	}
 
+	if (sent_len > 0 ) {
+		if (dev == cfg->peer_dev[0]) {
+			if (cfg->leds[0].port != NULL) {
+				gpio_pin_set_dt(&cfg->leds[0], 1);
+				k_work_reschedule(&data->tx_led_work.work, K_MSEC(5));
+			}
+		} else {
+			if (cfg->leds[1].port != NULL) {
+				gpio_pin_set_dt(&cfg->leds[1], 1);
+				k_work_reschedule(&data->rx_led_work.work, K_MSEC(5));
+			}
+		}
+	}
+
 	if (peer_data->paused &&
 	    ring_buf_space_get(&peer_data->rb) > RING_BUF_FULL_THRESHOLD) {
 		LOG_DBG("%s: buffer free: resume", dev->name);
@@ -223,13 +264,48 @@ static int uart_bridge_pm_action(const struct device *dev,
 
 static int uart_bridge_init(const struct device *dev)
 {
+	const struct uart_bridge_config *cfg = dev->config;
 	struct uart_bridge_data *data = dev->data;
+	int ret;
+
+	for (int i = 0; i < ARRAY_SIZE(cfg->leds); i++) {
+		if (cfg->leds[i].port == NULL) {
+			continue;
+		}
+
+		if (!gpio_is_ready_dt(&cfg->leds[i])) {
+			LOG_ERR("%s: activity-leds[%d] gpio not ready", dev->name, i);
+			return -ENODEV;
+		}
+
+		ret = gpio_pin_configure_dt(&cfg->leds[i], GPIO_OUTPUT_INACTIVE);
+		if (ret) {
+			LOG_ERR("%s: failed to configure activity-leds[%d]: %d",
+				dev->name, i, ret);
+			return ret;
+		}
+	}
 
 	ring_buf_init(&data->peer[0].rb, RING_BUF_SIZE, data->peer[0].buf);
 	ring_buf_init(&data->peer[1].rb, RING_BUF_SIZE, data->peer[1].buf);
 
+	data->tx_led_work.cfg = cfg;
+	data->tx_led_work.led_idx = 0;
+	k_work_init_delayable(&data->tx_led_work.work,
+			     uart_bridge_led_work_handler);
+
+	data->rx_led_work.cfg = cfg;
+	data->rx_led_work.led_idx = 1;
+	k_work_init_delayable(&data->rx_led_work.work,
+			     uart_bridge_led_work_handler);
+
 	return pm_device_driver_init(dev, uart_bridge_pm_action);
 }
+
+#define UART_BRIDGE_LED_SPEC_OR(inst, idx) \
+	COND_CODE_1(DT_INST_PROP_HAS_IDX(inst, activity_leds, idx), \
+		    (GPIO_DT_SPEC_GET(DT_INST_PHANDLE_BY_IDX(inst, activity_leds, idx), gpios)), \
+		    ((struct gpio_dt_spec){0}))
 
 #define UART_BRIDGE_INIT(n)							\
 	BUILD_ASSERT(DT_INST_PROP_LEN(n, peers) == 2,				\
@@ -238,6 +314,10 @@ static int uart_bridge_init(const struct device *dev)
 	static const struct uart_bridge_config uart_bridge_cfg_##n = {		\
 		.peer_dev = {DT_INST_FOREACH_PROP_ELEM_SEP(			\
 			n, peers, DEVICE_DT_GET_BY_IDX, (,))},			\
+		.leds = {							\
+			UART_BRIDGE_LED_SPEC_OR(n, 0),				\
+			UART_BRIDGE_LED_SPEC_OR(n, 1),				\
+		},							\
 	};									\
 										\
 	static struct uart_bridge_data uart_bridge_data_##n;			\

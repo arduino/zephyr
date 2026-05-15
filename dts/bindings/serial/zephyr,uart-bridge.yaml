@@ -13,6 +13,7 @@ description: |
   uart-bridge {
            compatible = "zephyr,uart-bridge";
            peers = <&cdc_acm_uart0 &uart1>;
+           activity-leds = <&tx_led &rx_led>;
   };
 
 include: base.yaml
@@ -23,3 +24,7 @@ properties:
   peers:
     type: phandles
     description: Peer device nodes, must contain two phandles
+  activity-leds:
+    type: phandles
+    description: Optional LEDs to indicate activity on the two serial ports, can contain up to two phandles
+    required: false
