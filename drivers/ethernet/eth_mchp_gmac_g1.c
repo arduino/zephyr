@@ -18,12 +18,16 @@ LOG_MODULE_REGISTER(eth_mchp_gmac_g1, CONFIG_ETHERNET_LOG_LEVEL);
 
 #define DT_DRV_COMPAT microchip_gmac_g1_eth
 
-#define MCHP_OUI_B0 0x00
-#define MCHP_OUI_B1 0x04
-#define MCHP_OUI_B2 0xA3
-
 #define GMAC_PHY_CONN_TYPE_MII  0
 #define GMAC_PHY_CONN_TYPE_RMII 1
+
+#if (DT_INST_ENUM_IDX(0, phy_connection_type) == GMAC_PHY_CONN_TYPE_MII)
+#define GMAC_PHY_CONN_TYPE_MII_ENABLED
+#endif
+
+#if (DT_INST_ENUM_IDX(0, phy_connection_type) == GMAC_PHY_CONN_TYPE_RMII)
+#define GMAC_PHY_CONN_TYPE_RMII_ENABLED
+#endif
 
 #define GMAC_MTU            NET_ETH_MTU
 #define GMAC_FRAME_SIZE_MAX (GMAC_MTU + 18)
@@ -89,6 +93,8 @@ BUILD_ASSERT(ARRAY_SIZE(GMAC->GMAC_TBQBAPQ) + 1 == GMAC_QUEUE_NUM,
 
 #define GMAC_DMA_QUEUE_FLAGS (0)
 
+#define TIMEOUT_REG_SYNC 1000
+
 enum queue_idx {
 	GMAC_QUE_0, /* Main queue */
 };
@@ -130,7 +136,6 @@ struct gmac_queue {
 
 struct gmac_dev_data {
 	struct net_if *iface;
-	uint8_t mac_addr[6];
 	uint32_t phy_connection_type;
 	struct k_sem rx_int_sem;
 
@@ -151,6 +156,10 @@ struct gmac_dev_config {
 	const struct device *phy_dev;
 	clock_control_subsys_t mclk_apb_sys;
 	clock_control_subsys_t mclk_ahb_sys;
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	clock_control_subsys_t gclk_tx_sys;
+	clock_control_subsys_t gclk_tsu_sys;
+#endif
 	const struct net_eth_mac_config mcfg;
 };
 
@@ -319,6 +328,9 @@ static void gmac_tx_completed(gmac_registers_t *gmac, struct gmac_queue *queue)
 		 "first buffer of a frame is not marked as own by GMAC");
 	while (tx_desc_list->tail != tx_desc_list->head) {
 		tx_desc = &tx_desc_list->buf_desc[tx_desc_list->tail];
+		tx_desc->status &= ~(GMAC_TXW1_LEN | GMAC_TXW1_LASTBUFFER | GMAC_TXW1_NOCRC |
+				     GMAC_TXW1_CHKSUMERR | GMAC_TXW1_LATECOLERR |
+				     GMAC_TXW1_TRANSERR | GMAC_TXW1_RETRYEXC | GMAC_TXW1_USED);
 		MODULO_INC(tx_desc_list->tail, tx_desc_list->len);
 		k_sem_give(&queue->tx_desc_sem);
 		ring_buf_get(&queue->tx_frag_rb, (uint8_t *)&ptr, sizeof(ptr));
@@ -373,42 +385,113 @@ static void gmac_rx_error_handler(gmac_registers_t *gmac, struct gmac_queue *que
 	gmac->GMAC_NCR |= GMAC_NCR_RXEN_Msk;
 }
 
-static int gmac_set_phy_connection_type(const struct device *dev, gmac_registers_t *gmac)
+static int gmac_set_phy_connection_type(gmac_registers_t *gmac)
 {
-	struct gmac_dev_data *const dev_data = dev->data;
-
-	switch (dev_data->phy_connection_type) {
-	case GMAC_PHY_CONN_TYPE_MII:
-		gmac->GMAC_UR = 0x1;
-		break;
-	case GMAC_PHY_CONN_TYPE_RMII:
-		gmac->GMAC_UR = 0x0;
-		break;
-	default:
-		LOG_ERR("The phy connection type is invalid");
-
-		return -EINVAL;
+#ifdef GMAC_PHY_CONN_TYPE_MII_ENABLED
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_CTRLB &= ~ETH_CTRLB_GBITCLKREQ_Msk;
+	gmac->ETH_CTRLB |= ETH_CTRLB_GMIIEN(1);
+	if (WAIT_FOR((gmac->ETH_SYNCB == 0), TIMEOUT_REG_SYNC, NULL) == false) {
+		LOG_ERR("SYNCBUSY timeout");
+		return -ETIMEDOUT;
 	}
+	gmac->GMAC_NCFGR &= ~GMAC_NCFGR_GIGE_Msk;
+#else
+	gmac->GMAC_UR = 0x1;
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
+#elif defined(GMAC_PHY_CONN_TYPE_RMII_ENABLED)
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_CTRLB &= ~(ETH_CTRLB_GMIIEN_Msk | ETH_CTRLB_GBITCLKREQ_Msk);
+	if (WAIT_FOR((gmac->ETH_SYNCB == 0), TIMEOUT_REG_SYNC, NULL) == false) {
+		LOG_ERR("SYNCBUSY timeout");
+		return -ETIMEDOUT;
+	}
+	gmac->GMAC_NCFGR &= ~GMAC_NCFGR_GIGE_Msk;
+#else
+	gmac->GMAC_UR = 0x0;
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
+#endif /* GMAC_PHY_CONN_TYPE_MII_ENABLED */
+
+	return 0;
+}
+
+static inline int gmac_get_mck_clock_divisor(uint32_t mck, uint32_t *mck_divisor)
+{
+	if (mck <= MHZ(20)) {
+		*mck_divisor = GMAC_NCFGR_CLK_MCK8;
+	} else if (mck <= MHZ(40)) {
+		*mck_divisor = GMAC_NCFGR_CLK_MCK16;
+	} else if (mck <= MHZ(80)) {
+		*mck_divisor = GMAC_NCFGR_CLK_MCK32;
+	} else if (mck <= MHZ(120)) {
+		*mck_divisor = GMAC_NCFGR_CLK_MCK48;
+	} else if (mck <= MHZ(160)) {
+		*mck_divisor = GMAC_NCFGR_CLK_MCK64;
+	} else if (mck <= MHZ(240)) {
+		*mck_divisor = GMAC_NCFGR_CLK_MCK96;
+	} else {
+		LOG_ERR("No valid MDC clock");
+
+		return -ENOTSUP;
+	}
+
+	LOG_INF("mck %d mck_divisor = 0x%x", mck, *mck_divisor);
 
 	return 0;
 }
 
 static int gmac_init(const struct device *dev, gmac_registers_t *gmac)
 {
+	int retval;
+	uint32_t clk_freq_hz = 0;
+	uint32_t mck_divisor;
+	const struct gmac_dev_config *const cfg = dev->config;
+
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_CTRLA = ETH_CTRLA_ENABLE(1);
+	if (WAIT_FOR((gmac->ETH_SYNCB == 0), TIMEOUT_REG_SYNC, NULL) == false) {
+		LOG_ERR("SYNCBUSY timeout");
+		return -ETIMEDOUT;
+	}
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
 	gmac->GMAC_NCFGR |= GMAC_NCFGR_MTIHEN_Msk | GMAC_NCFGR_LFERD_Msk | GMAC_NCFGR_RFCS_Msk |
 #ifdef CONFIG_NET_VLAN
 			    GMAC_NCFGR_MAXFS_Msk |
+#endif
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+			    ETH_NCFGR_DBW(1) |
 #endif
 			    GMAC_NCFGR_RXCOEN_Msk;
 
 	gmac->GMAC_NCR = GMAC_NCR_CLRSTAT_Msk | GMAC_NCR_MPE_Msk;
 	gmac->GMAC_IDR = UINT32_MAX;
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_ISR = gmac->ETH_ISR & ETH_ISR_Msk;
+#else
 	(void)gmac->GMAC_ISR;
+#endif
 	gmac->GMAC_HRB = UINT32_MAX;
 	gmac->GMAC_HRT = UINT32_MAX;
 	gmac->GMAC_RSR = GMAC_RSR_RESETVALUE;
 
-	return gmac_set_phy_connection_type(dev, gmac);
+	retval = clock_control_get_rate(DEVICE_DT_GET(DT_NODELABEL(clock)), cfg->mclk_apb_sys,
+					&clk_freq_hz);
+	if (retval < 0) {
+		LOG_ERR("ETH_MCHP_GET_CLOCK_FREQ Failed");
+
+		return retval;
+	}
+
+	retval = gmac_get_mck_clock_divisor(clk_freq_hz, &mck_divisor);
+	if (retval < 0) {
+		return retval;
+	}
+
+	gmac->GMAC_NCFGR &= ~(GMAC_NCFGR_CLK_MCK8 | GMAC_NCFGR_CLK_MCK16 | GMAC_NCFGR_CLK_MCK32 |
+			      GMAC_NCFGR_CLK_MCK48 | GMAC_NCFGR_CLK_MCK64 | GMAC_NCFGR_CLK_MCK96);
+	gmac->GMAC_NCFGR |= mck_divisor;
+
+	return gmac_set_phy_connection_type(gmac);
 }
 
 static void gmac_link_configure(gmac_registers_t *gmac, bool full_duplex, bool speed_100M)
@@ -457,10 +540,10 @@ static void gmac_get_stats(gmac_registers_t *gmac, struct net_stats_eth *eth_sta
 }
 #endif /* CONFIG_NET_STATISTICS_ETHERNET */
 
-static bool gmac_check_queue_for_data(struct gmac_desc_list *rx_desc_list,
-				      struct gmac_desc *rx_desc)
+static bool gmac_check_queue_for_data(struct gmac_desc_list *rx_desc_list)
 {
 	uint16_t tail = rx_desc_list->tail;
+	struct gmac_desc *rx_desc = &rx_desc_list->buf_desc[tail];
 
 	while ((rx_desc->addr & GMAC_RXW0_OWNERSHIP) == 0) {
 		MODULO_INC(tail, rx_desc_list->len);
@@ -475,17 +558,18 @@ static bool gmac_check_queue_for_data(struct gmac_desc_list *rx_desc_list,
 	return true;
 }
 
-static int gmac_find_valid_frame(struct gmac_desc_list *rx_desc_list, struct gmac_desc *rx_desc,
+static int gmac_find_valid_frame(struct gmac_desc_list *rx_desc_list,
 				 struct gmac_frame_info *frame_info)
 {
 	uint16_t tail = rx_desc_list->tail;
 	bool sof_found = false;
+	struct gmac_desc *rx_desc = &rx_desc_list->buf_desc[tail];
 
 	frame_info->sof_index = -1;
 	frame_info->eof_index = -1;
 	frame_info->num_descriptors = 0;
 	while (((rx_desc->addr & GMAC_RXW0_OWNERSHIP) != 0) && (frame_info->eof_index == -1)) {
-		if (((uint8_t *)(rx_desc->addr & GMAC_RXW0_ADDR)) == 0) {
+		if ((rx_desc->addr & GMAC_RXW0_ADDR) == 0) {
 			rx_desc->addr &= ~GMAC_RXW0_OWNERSHIP;
 			break;
 		}
@@ -516,7 +600,7 @@ static int gmac_find_valid_frame(struct gmac_desc_list *rx_desc_list, struct gma
 	return 0;
 }
 
-static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue, int *errno,
+static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue, int *err_no,
 							struct gmac_frame_info *frame_info)
 {
 	struct gmac_desc_list *rx_desc_list = &queue->rx_desc_list;
@@ -544,7 +628,7 @@ static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue
 		}
 
 		queue->err_rx_queue_frames_dropped++;
-		*errno = -ENOMEM;
+		*err_no = -ENOMEM;
 
 		return NULL;
 	}
@@ -561,6 +645,7 @@ static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue
 		}
 
 		frame_len += frag_len;
+
 		new_frag = net_pkt_get_frag(rx_pkt, CONFIG_NET_BUF_DATA_SIZE, K_NO_WAIT);
 		if (new_frag == NULL) {
 			bool eof_flag = false;
@@ -576,7 +661,7 @@ static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue
 
 			queue->err_rx_queue_frames_dropped++;
 			net_pkt_unref(rx_pkt);
-			*errno = -ENOMEM;
+			*err_no = -ENOMEM;
 
 			return NULL;
 		}
@@ -592,8 +677,10 @@ static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue
 		frag = new_frag;
 		rx_frag_list[tail] = frag;
 		rx_desc->status = 0U;
-		rx_desc->addr &= (~GMAC_RXW0_ADDR) & (~GMAC_RXW0_OWNERSHIP);
+		rx_desc->addr &= (~GMAC_RXW0_ADDR);
 		rx_desc->addr |= ((uint32_t)frag->data & GMAC_RXW0_ADDR);
+		rx_desc->addr &= (~GMAC_RXW0_OWNERSHIP);
+
 		MODULO_INC(tail, rx_desc_list->len);
 		rx_desc = &rx_desc_list->buf_desc[tail];
 	}
@@ -606,56 +693,54 @@ static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue
 }
 
 static struct net_pkt *gmac_pkt_get(gmac_registers_t *gmac_regs, struct gmac_queue *queue,
-				    int *errno)
+				    int *err_no)
 {
 	struct gmac_desc_list *rx_desc_list = &queue->rx_desc_list;
 	struct net_pkt *rx_pkt = NULL;
-	uint16_t tail = rx_desc_list->tail;
-	struct gmac_desc *rx_desc = &rx_desc_list->buf_desc[tail];
 	struct gmac_frame_info frame_info;
 
 	/* if the packet not available in the first descriptor */
-	if (gmac_check_queue_for_data(rx_desc_list, rx_desc) == false) {
-		*errno = -ENODATA;
+	if (gmac_check_queue_for_data(rx_desc_list) == false) {
+		*err_no = -ENODATA;
 
 		return NULL;
 	}
 
-	if (gmac_find_valid_frame(rx_desc_list, rx_desc, &frame_info) != 0) {
+	if (gmac_find_valid_frame(rx_desc_list, &frame_info) != 0) {
 		gmac_rx_error_handler(gmac_regs, queue);
-		*errno = -EINVAL;
+		*err_no = -EINVAL;
 
 		return NULL;
 	}
 
-	rx_pkt = gmac_extract_and_replace_buffers(queue, errno, &frame_info);
+	rx_pkt = gmac_extract_and_replace_buffers(queue, err_no, &frame_info);
 
 	return rx_pkt;
 }
 
 static void gmac_rx(gmac_registers_t *gmac_regs, struct gmac_queue *queue)
 {
-	int errno = 0;
+	int err_no = 0;
 	struct gmac_dev_data *dev_data =
 		CONTAINER_OF(queue, struct gmac_dev_data, queue_list[queue->que_idx]);
 	struct net_pkt *rx_pkt = NULL;
-	uint32_t pkts_processed = 0;
+	bool bna_flag = (gmac_regs->GMAC_RSR & GMAC_RSR_BNA_Msk) ? true : false;
 
-	while (pkts_processed < GMAC_RX_PROCESS_LIMIT) {
-		rx_pkt = gmac_pkt_get(gmac_regs, queue, &errno);
+	while (1) {
+		rx_pkt = gmac_pkt_get(gmac_regs, queue, &err_no);
 		if (rx_pkt == NULL) {
-			if (errno == -ENODATA) {
+			if (err_no == -ENODATA) {
 				break;
 			}
 
-			if (errno == -ENOMEM) {
+			if (err_no == -ENOMEM) {
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 				dev_data->stats.error_details.rx_buf_alloc_failed++;
 #endif /* CONFIG_NET_STATISTICS_ETHERNET */
 				break;
 			}
 
-			if (errno == -EINVAL) {
+			if (err_no == -EINVAL) {
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 				dev_data->stats.error_details.rx_frame_errors++;
 #endif /* CONFIG_NET_STATISTICS_ETHERNET */
@@ -669,6 +754,10 @@ static void gmac_rx(gmac_registers_t *gmac_regs, struct gmac_queue *queue)
 #endif /* CONFIG_NET_STATISTICS_ETHERNET */
 			net_pkt_unref(rx_pkt);
 		}
+	}
+
+	if (bna_flag) {
+		gmac_regs->GMAC_RSR = GMAC_RSR_BNA_Msk;
 	}
 }
 
@@ -742,12 +831,11 @@ static int eth_mchp_send(const struct device *dev, struct net_pkt *pkt)
 		return -EIO;
 	}
 
-	tx_desc_list = &queue->tx_desc_list;
-	tx_first_desc = &tx_desc_list->buf_desc[tx_desc_list->head];
 	frag = pkt->frags;
 
 	while (frag != NULL) {
 		uintptr_t ptr = POINTER_TO_UINT(frag);
+		unsigned int irq_lock_key;
 
 		frag_data = frag->data;
 		frag_len = frag->len;
@@ -768,7 +856,9 @@ static int eth_mchp_send(const struct device *dev, struct net_pkt *pkt)
 
 		tx_desc->status &= ~GMAC_TXW1_LEN;
 		tx_desc->status |= (frag_len & GMAC_TXW1_LEN);
+		irq_lock_key = irq_lock();
 		MODULO_INC(tx_desc_list->head, tx_desc_list->len);
+		irq_unlock(irq_lock_key);
 		__ASSERT(tx_desc_list->head != tx_desc_list->tail, "tx_desc_list overflow");
 		ring_buf_put(&queue->tx_frag_rb, (uint8_t *)&ptr, sizeof(ptr));
 		net_pkt_frag_ref(frag);
@@ -782,15 +872,18 @@ static int eth_mchp_send(const struct device *dev, struct net_pkt *pkt)
 		return -EIO;
 	}
 
-	tx_desc_list->buf_desc[tx_desc_list->head].status |= GMAC_TXW1_USED;
-	head_desc_index = tx_desc_list->head ? (tx_desc_list->head - 1) : (tx_desc_list->len - 1);
+	head_desc_index = tx_desc_list->head;
+	MODULO_DEC(head_desc_index, tx_desc_list->len);
 	frag = pkt->frags;
-	while (frag != NULL) {
+
+	while (pkt_buff_cnt) {
 		tx_desc_list->buf_desc[head_desc_index].status &= ~GMAC_TXW1_USED;
-		frag = frag->frags;
 		MODULO_DEC(head_desc_index, tx_desc_list->len);
+		pkt_buff_cnt--;
 	}
 
+	__ISB();
+	__DSB();
 	gmac_regs->GMAC_NCR |= GMAC_NCR_TSTART_Msk;
 	k_mutex_unlock(&queue->tx_mutex);
 
@@ -806,27 +899,35 @@ static void eth_mchp_queue0_isr(const struct device *dev)
 	struct gmac_desc_list *rx_desc_list = &queue->rx_desc_list;
 	struct gmac_desc_list *tx_desc_list = &queue->tx_desc_list;
 	struct gmac_desc *tail_desc;
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	uint32_t isr = gmac_regs->ETH_ISR & ETH_ISR_Msk;
+
+	gmac_regs->ETH_ISR = isr;
+#else
 	uint32_t isr = gmac_regs->GMAC_ISR;
+#endif
 
 	LOG_DBG("GMAC_ISR=0x%08x", isr);
 
-	if ((isr & GMAC_INT_RX_ERR_BITS) != 0) {
-		queue->err_rx_queue_flushed_count++;
-	} else if (isr & GMAC_ISR_RCOMP_Msk) {
+	if (isr & GMAC_ISR_RCOMP_Msk) {
 		tail_desc = &rx_desc_list->buf_desc[rx_desc_list->tail];
 		LOG_DBG("rx.w1=0x%08x, tail=%d", tail_desc->status, rx_desc_list->tail);
 		dev_data->rx_queue = queue;
 		k_sem_give(&dev_data->rx_int_sem);
-	} else {
-		if ((isr & GMAC_INT_TX_ERR_BITS) != 0) {
-			gmac_tx_error_handler(gmac_regs, queue);
-		} else if (isr & GMAC_ISR_TCOMP_Msk) {
-			tail_desc = &tx_desc_list->buf_desc[tx_desc_list->tail];
-			LOG_DBG("tx.w1=0x%08x, tail=%d", tail_desc->status, tx_desc_list->tail);
-			gmac_tx_completed(gmac_regs, queue);
-		} else {
-			/* To avoid Sonar Issue */
-		}
+	}
+
+	if ((isr & GMAC_INT_RX_ERR_BITS) != 0) {
+		queue->err_rx_queue_flushed_count++;
+	}
+
+	if (isr & GMAC_ISR_TCOMP_Msk) {
+		tail_desc = &tx_desc_list->buf_desc[tx_desc_list->tail];
+		LOG_DBG("tx.w1=0x%08x, tail=%d", tail_desc->status, tx_desc_list->tail);
+		gmac_tx_completed(gmac_regs, queue);
+	}
+
+	if ((isr & GMAC_INT_TX_ERR_BITS) != 0) {
+		gmac_tx_error_handler(gmac_regs, queue);
 	}
 
 	if ((isr & GMAC_IER_HRESP_Msk) != 0) {
@@ -843,6 +944,7 @@ static int eth_mchp_initialize(const struct device *dev)
 {
 	const struct gmac_dev_config *const cfg = dev->config;
 	struct gmac_dev_data *const dev_data = dev->data;
+	gmac_registers_t *const gmac_regs = cfg->regs;
 	int retval;
 
 	cfg->config_func();
@@ -861,6 +963,23 @@ static int eth_mchp_initialize(const struct device *dev)
 		return retval;
 	}
 
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	retval = clock_control_on(DEVICE_DT_GET(DT_NODELABEL(clock)), cfg->gclk_tx_sys);
+	if ((retval != 0) && (retval != -EALREADY)) {
+		LOG_ERR("Failed to enable GCLK TX for Ethernet: %d", retval);
+
+		return retval;
+	}
+
+	retval = clock_control_on(DEVICE_DT_GET(DT_NODELABEL(clock)), cfg->gclk_tsu_sys);
+	if ((retval != 0) && (retval != -EALREADY)) {
+		LOG_ERR("Failed to enable GCLK TSU for Ethernet: %d", retval);
+
+		return retval;
+	}
+
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
+
 	retval = pinctrl_apply_state(cfg->pinctrl_cfg, PINCTRL_STATE_DEFAULT);
 	if (retval != 0) {
 		LOG_ERR("pinctrl_apply_state() Failed for Ethernet driver: %d", retval);
@@ -868,7 +987,6 @@ static int eth_mchp_initialize(const struct device *dev)
 		return retval;
 	}
 
-	dev_data->phy_connection_type = DT_INST_ENUM_IDX(0, phy_connection_type);
 	dev_data->queue_list[0].que_idx = GMAC_QUE_0;
 	dev_data->queue_list[0].rx_desc_list.buf_desc = rx_desc_que0;
 	dev_data->queue_list[0].rx_desc_list.len = ARRAY_SIZE(rx_desc_que0);
@@ -877,6 +995,13 @@ static int eth_mchp_initialize(const struct device *dev)
 	dev_data->queue_list[0].rx_frag_list = rx_frag_list_que0;
 	dev_data->queue_list[0].tx_frag_rb.buffer = tx_frag_rb_buf_que0;
 	dev_data->queue_list[0].tx_frag_rb.size = sizeof(tx_frag_rb_buf_que0);
+
+	retval = gmac_init(dev, gmac_regs);
+	if (retval < 0) {
+		LOG_ERR("Unable to initialize ETH driver");
+
+		return retval;
+	}
 
 	return retval;
 }
@@ -919,18 +1044,12 @@ static void eth_mchp_iface_init(struct net_if *iface)
 	const struct gmac_dev_config *const cfg = dev->config;
 	gmac_registers_t *const gmac_regs = cfg->regs;
 	int result;
+	uint8_t mac_addr[6];
 
 	dev_data->iface = iface;
 	ethernet_init(iface);
 
-	result = gmac_init(dev, gmac_regs);
-	if (result < 0) {
-		LOG_ERR("Unable to initialize ETH driver");
-
-		return;
-	}
-
-	result = net_eth_mac_load(&cfg->mcfg, dev_data->mac_addr);
+	result = net_eth_mac_load(&cfg->mcfg, mac_addr);
 	if (result == -ENODATA) {
 		LOG_DBG("No MAC address configured");
 	} else if (result < 0) {
@@ -940,14 +1059,12 @@ static void eth_mchp_iface_init(struct net_if *iface)
 	}
 
 	if (result != -ENODATA) {
-		gmac_mac_addr_set(gmac_regs, 0, dev_data->mac_addr);
+		gmac_mac_addr_set(gmac_regs, 0, mac_addr);
 
-		LOG_INF("MAC: %02x:%02x:%02x:%02x:%02x:%02x", dev_data->mac_addr[0],
-			dev_data->mac_addr[1], dev_data->mac_addr[2], dev_data->mac_addr[3],
-			dev_data->mac_addr[4], dev_data->mac_addr[5]);
+		LOG_INF("MAC: %02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2],
+			mac_addr[3], mac_addr[4], mac_addr[5]);
 
-		net_if_set_link_addr(iface, dev_data->mac_addr, sizeof(dev_data->mac_addr),
-				     NET_LINK_ETHERNET);
+		net_if_set_link_addr(iface, mac_addr, sizeof(mac_addr), NET_LINK_ETHERNET);
 	}
 
 	for (int i = GMAC_QUE_0; i < GMAC_QUEUE_NUM; i++) {
@@ -959,7 +1076,7 @@ static void eth_mchp_iface_init(struct net_if *iface)
 		}
 	}
 
-	if (device_is_ready(cfg->phy_dev) == true) {
+	if (device_is_ready(cfg->phy_dev)) {
 		phy_link_callback_set(cfg->phy_dev, &eth_mchp_phy_link_state_changed, (void *)dev);
 	} else {
 		LOG_ERR("PHY device not ready");
@@ -997,6 +1114,7 @@ static enum ethernet_hw_caps eth_mchp_get_capabilities(const struct device *dev)
 #if defined(CONFIG_NET_VLAN)
 	hw_caps |= ETHERNET_HW_VLAN;
 #endif /* CONFIG_NET_VLAN */
+	hw_caps |= ETHERNET_HW_TX_CHKSUM_OFFLOAD | ETHERNET_HW_RX_CHKSUM_OFFLOAD;
 
 	return hw_caps;
 }
@@ -1007,18 +1125,14 @@ static int eth_mchp_set_config(const struct device *dev, enum ethernet_config_ty
 	int result = 0;
 	const struct gmac_dev_config *const cfg = dev->config;
 	gmac_registers_t *const gmac_regs = cfg->regs;
+	uint8_t mac_addr[6];
 
 	switch (type) {
 	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
-		struct gmac_dev_data *const dev_data = dev->data;
-
-		memcpy(dev_data->mac_addr, config->mac_address.addr, sizeof(dev_data->mac_addr));
-		gmac_mac_addr_set(gmac_regs, 0, dev_data->mac_addr);
-		LOG_INF("%s MAC set to %02x:%02x:%02x:%02x:%02x:%02x", dev->name,
-			dev_data->mac_addr[0], dev_data->mac_addr[1], dev_data->mac_addr[2],
-			dev_data->mac_addr[3], dev_data->mac_addr[4], dev_data->mac_addr[5]);
-		result = net_if_set_link_addr(dev_data->iface, dev_data->mac_addr,
-					      sizeof(dev_data->mac_addr), NET_LINK_ETHERNET);
+		memcpy(mac_addr, config->mac_address.addr, sizeof(mac_addr));
+		gmac_mac_addr_set(gmac_regs, 0, mac_addr);
+		LOG_INF("%s MAC set to %02x:%02x:%02x:%02x:%02x:%02x", dev->name, mac_addr[0],
+			mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 		break;
 
 	default:
@@ -1039,15 +1153,15 @@ static int eth_mchp_get_config(const struct device *dev, enum ethernet_config_ty
 				  ETHERNET_CHECKSUM_SUPPORT_TCP | ETHERNET_CHECKSUM_SUPPORT_UDP;
 
 	switch (type) {
-	case ETHERNET_CONFIG_TYPE_RX_CHECKSUM_SUPPORT: {
+	case ETHERNET_CONFIG_TYPE_RX_CHECKSUM_SUPPORT:
 		val = gmac_regs->GMAC_NCFGR;
 		config->chksum_support = (val & GMAC_NCFGR_RXCOEN_Msk) ? chksum_support : 0;
-	} break;
+		break;
 
-	case ETHERNET_CONFIG_TYPE_TX_CHECKSUM_SUPPORT: {
+	case ETHERNET_CONFIG_TYPE_TX_CHECKSUM_SUPPORT:
 		val = gmac_regs->GMAC_DCFGR;
 		config->chksum_support = (val & GMAC_DCFGR_TXCOEN_Msk) ? chksum_support : 0;
-	} break;
+		break;
 
 	default:
 		return -ENOTSUP;
@@ -1083,6 +1197,10 @@ static const struct gmac_dev_config eth_config = {
 	.mcfg = NET_ETH_MAC_DT_INST_CONFIG_INIT(0),
 	.mclk_apb_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, mclk_apb, subsystem),
 	.mclk_ahb_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, mclk_ahb, subsystem),
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	.gclk_tx_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, gclk_tx, subsystem),
+	.gclk_tsu_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, gclk_tsu, subsystem),
+#endif
 	.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(0, phy_handle))};
 
 static struct gmac_dev_data eth_data;

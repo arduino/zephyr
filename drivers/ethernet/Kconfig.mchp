@@ -9,6 +9,7 @@ menuconfig ETH_MCHP_GMAC_G1
 	depends on DT_HAS_MICROCHIP_GMAC_G1_ETH_ENABLED
 	select NOCACHE_MEMORY if ARCH_HAS_NOCACHE_MEMORY_SUPPORT
 	select PINCTRL
+	select NET_CHECKSUM_OFFLOAD_SUPPORTED if NET_L2_ETHERNET
 	imply NVMEM if $(dt_compat_any_has_prop,$(DT_COMPAT_MICROCHIP_GMAC_G1_ETH),nvmem-cells)
 	help
 	  Enable Microchip MCU Family Ethernet driver.
