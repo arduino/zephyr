@@ -36,8 +36,11 @@ LOG_MODULE_REGISTER(intc_mchp_eic_g1, CONFIG_INTC_LOG_LEVEL);
 /* finds out the trig type bit position inside the configX register*/
 #define EIC_TRIG_TYPE_BIT_POS(eic_line)                                                            \
 	(NUM_OF_BITS_FOR_EACH_LINE * EIC_CONFIG_EIC_LINE_OFFSET(eic_line))
+
 /* Port A */
-#define PORTA_UNSUPPORTED_PINS DT_INST_PROP(0, porta_unsupported_pins)
+#define PORTA_UNSUPPORTED_PINS      DT_INST_PROP(0, porta_unsupported_pins)
+#define PORTA_SPECIAL_PINS_1        DT_INST_PROP_BY_IDX(0, porta_special_pins_1, 0)
+#define PORTA_SPECIAL_PINS_1_OFFSET DT_INST_PROP_BY_IDX(0, porta_special_pins_1, 1)
 
 /* Port B */
 /* The special pins need an offset when calculating the eic line */
@@ -119,7 +122,8 @@ struct eic_mchp_dev_data {
  * It returns the EIC line number corresponding to the given port and pin.
  *         If the pin is unsupported, returns INTC_LINE_FREE.
  */
-uint8_t find_eic_line_from_pin(int port, int pin)
+
+static uint8_t find_eic_line_from_pin(int port, int pin)
 {
 	uint8_t eic_line = pin % EIC_LINES_PER_PORT;
 	uint32_t pin_mask = BIT(pin);
@@ -128,6 +132,10 @@ uint8_t find_eic_line_from_pin(int port, int pin)
 	case MCHP_PORT_ID0:
 		if ((PORTA_UNSUPPORTED_PINS & pin_mask) != 0) {
 			eic_line = INTC_LINE_FREE;
+		} else if ((PORTA_SPECIAL_PINS_1 & pin_mask) != 0) {
+			eic_line += PORTA_SPECIAL_PINS_1_OFFSET;
+		} else {
+			/*Nothing to be done*/
 		}
 		break;
 	case MCHP_PORT_ID1:
@@ -189,45 +197,90 @@ static void enable_interrupt_line(eic_registers_t *regs, uint8_t eic_line)
 	regs->EIC_INTENSET |= pin_mask;
 }
 
+/* The bit position for respective eic line in the config
+ * register is calculated and written into the respective config
+ * register
+ */
+static inline void eic_config_set_trig(eic_registers_t *regs, uint8_t eic_line, uint32_t trig_type)
+{
+	const uint32_t shift = EIC_TRIG_TYPE_BIT_POS(eic_line);
+	const uint32_t mask = (uint32_t)EIC_CONFIG_EIC_LINE_MSK << shift;
+	const uint32_t val = (trig_type & EIC_CONFIG_EIC_LINE_MSK) << shift;
+
+#if defined(CONFIG_SOC_FAMILY_MICROCHIP_PIC32CX_SG) ||                                             \
+	defined(CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC)
+	/* EIC_CONFIG0 / EIC_CONFIG1 as separate fields */
+	if (EIC_CONFIG_REG_IDX(eic_line) == 0) {
+		regs->EIC_CONFIG0 = (regs->EIC_CONFIG0 & ~mask) | val;
+	} else {
+		regs->EIC_CONFIG1 = (regs->EIC_CONFIG1 & ~mask) | val;
+	}
+#else
+	/* EIC_CONFIG[] as an array */
+	const uint8_t idx = EIC_CONFIG_REG_IDX(eic_line);
+
+	regs->EIC_CONFIG[idx] = (regs->EIC_CONFIG[idx] & ~mask) | val;
+#endif
+}
+
 static void disable_interrupt_line(eic_registers_t *regs, uint8_t eic_line)
 {
 	regs->EIC_INTENCLR = BIT(eic_line);
 }
+
 int eic_mchp_disable_interrupt(struct eic_config_params *eic_pin_config)
 {
 	const struct device *const dev = DEVICE_DT_INST_GET(0);
 	const struct eic_mchp_dev_cfg *eic_cfg = dev->config;
 	struct eic_mchp_dev_data *eic_data = dev->data;
 
-	LOG_DBG("port = %p pint = %d", eic_pin_config->port_addr, eic_pin_config->pin_num);
-	/*Check whether the pin was assigned to an eic line.*/
+	LOG_DBG("port = %p pin = %d", eic_pin_config->port_addr, eic_pin_config->pin_num);
+
 	uint8_t eic_line = find_eic_line_from_pin(eic_pin_config->port_id, eic_pin_config->pin_num);
 
-	if ((eic_data->line_busy & BIT(eic_line)) != 0) {
-		disable_interrupt_line(eic_cfg->regs, eic_line);
-	} else {
-		LOG_ERR("EIC Line is already free");
+	/* validate the line before doing anything with it */
+	if (eic_line == INTC_LINE_FREE) {
+		LOG_ERR("No EIC line associated with port %d pin %d", eic_pin_config->port_id,
+			eic_pin_config->pin_num);
+		return -ENOTSUP;
+	}
+
+	/* If the line was never configured, just return success silently */
+	if ((eic_data->line_busy & BIT(eic_line)) == 0) {
+		LOG_DBG("EIC Line %d is already free", eic_line);
 		return 0;
 	}
 
-	/*Remove the connection from EIC peripheral*/
+	/* disable the EIC peripheral before touching config registers */
+	eic_disable(eic_cfg->regs);
+	eic_sync_wait(eic_cfg->regs);
+
+	/* Mask the interrupt and clear any pending flag */
+	disable_interrupt_line(eic_cfg->regs, eic_line);
+	eic_cfg->regs->EIC_INTFLAG = BIT(eic_line);
+
+	/* clear the trigger-type bits for this line in EIC_CONFIG */
+	eic_config_set_trig(eic_cfg->regs, eic_line, 0);
+
+	/* clear debounce for this line */
+	eic_cfg->regs->EIC_DEBOUNCEN &= ~BIT(eic_line);
+
+	/* Disconnect pin from EIC peripheral */
 	eic_pin_config->port_addr->PORT_PINCFG[eic_pin_config->pin_num] &=
 		(uint8_t)(~PORT_PINCFG_PMUXEN(1));
 
-	/*Clear the pin number and port number from the structure which holds the status of
-	 * each eic line and make it free
-	 */
+	/* Re-enable the peripheral*/
+	eic_enable(eic_cfg->regs);
+	eic_sync_wait(eic_cfg->regs);
+
+	/* House-keeping: free the line */
 	eic_data->lock = irq_lock();
 	eic_data->line_busy &= ~BIT(eic_line);
-
-	/* Remove the assigned pin and port from lines structure */
 	eic_data->lines[eic_line].pin = INTC_PIN_DEFAULT_VAL;
 	eic_data->lines[eic_line].port = INTC_PORT_DEFAULT_VAL;
-
-	/*Remove the assigned EIC line from the port data*/
 	eic_data->port_assigned_line[eic_pin_config->port_id] &= ~BIT(eic_line);
-	irq_unlock(eic_data->lock);
 
+	irq_unlock(eic_data->lock);
 	return 0;
 }
 
@@ -300,10 +353,23 @@ int eic_mchp_config_interrupt(struct eic_config_params *eic_pin_config)
 
 	eic_data->lock = irq_lock();
 	if ((eic_data->line_busy & BIT(eic_line)) != 0) {
-		irq_unlock(eic_data->lock);
-		LOG_ERR("EIC Line for port %d : %d is busy", eic_pin_config->port_id, pin);
-		return -EBUSY;
+		/* The line is already in use. Allow it ONLY if this is the same
+		 * (port, pin) that already owns it — i.e. a legitimate reconfigure
+		 * (e.g. switching from EDGE_RISING to EDGE_FALLING).
+		 */
+		if ((eic_data->lines[eic_line].pin != pin) ||
+		    (eic_data->lines[eic_line].port != eic_pin_config->port_id)) {
+			irq_unlock(eic_data->lock);
+			LOG_ERR("EIC Line %d already owned by port %d pin %d "
+				"(requested port %d pin %d)",
+				eic_line, eic_data->lines[eic_line].port,
+				eic_data->lines[eic_line].pin, eic_pin_config->port_id, pin);
+			return -EBUSY;
+		}
+		LOG_DBG("Reconfiguring EIC line %d (port %d pin %d)", eic_line,
+			eic_pin_config->port_id, pin);
 	}
+
 	eic_disable(eic_cfg->regs);
 	eic_sync_wait(eic_cfg->regs);
 
@@ -312,32 +378,8 @@ int eic_mchp_config_interrupt(struct eic_config_params *eic_pin_config)
 	eic_pin_config->port_addr->PORT_PMUX[pmux_offset] &=
 		((pin & 1) == 0) ? (~PORT_PMUX_PMUXE_Msk) : (~PORT_PMUX_PMUXO_Msk);
 
-/* The bit position for respective eic line in the config
- * register is calculated and written into the respective config
- * register
- */
-#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CX_SG
-	if (EIC_CONFIG_REG_IDX(eic_line) == 0) {
-		eic_cfg->regs->EIC_CONFIG0 &=
-			~(EIC_CONFIG_EIC_LINE_MSK << EIC_TRIG_TYPE_BIT_POS(eic_line));
-
-		eic_cfg->regs->EIC_CONFIG0 |=
-			((eic_pin_config->trig_type) << EIC_TRIG_TYPE_BIT_POS(eic_line));
-	} else {
-		eic_cfg->regs->EIC_CONFIG1 &=
-			~(EIC_CONFIG_EIC_LINE_MSK << EIC_TRIG_TYPE_BIT_POS(eic_line));
-
-		eic_cfg->regs->EIC_CONFIG1 |=
-			((eic_pin_config->trig_type) << EIC_TRIG_TYPE_BIT_POS(eic_line));
-	}
-#else
-	eic_cfg->regs->EIC_CONFIG[EIC_CONFIG_REG_IDX(eic_line)] &=
-		~(EIC_CONFIG_EIC_LINE_MSK << EIC_TRIG_TYPE_BIT_POS(eic_line));
-
-	eic_cfg->regs->EIC_CONFIG[EIC_CONFIG_REG_IDX(eic_line)] |=
-		((eic_pin_config->trig_type) << EIC_TRIG_TYPE_BIT_POS(eic_line));
-
-#endif /*CONFIG_SOC_FAMILY_MICROCHIP_PIC32CX_SG*/
+	/* Set the trigger type for this EIC line in the EIC_CONFIG register */
+	eic_config_set_trig(eic_cfg->regs, eic_line, eic_pin_config->trig_type);
 
 	/* Set the debouncing feature of the eic line if required */
 	if (eic_pin_config->debounce != 0) {
@@ -444,7 +486,6 @@ static int eic_mchp_init(const struct device *dev)
 			n					\
 		)                                               \
 	}
-
 
 #define EIC_MCHP_DEVICE_INIT(n)                                                                    \
 	EIC_MCHP_CREATE_HANDLERS(n);                                                               \
