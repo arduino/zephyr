@@ -56,6 +56,20 @@ properties:
       Each bit in the property denotes a pin number. This shows the pins which
       support interrupt in portd
 
+  porta-special-pins-1:
+    type: array
+    default: [0, 0]
+    description: |
+      Each bit in this number denotes a pin number. These pins are derived from datasheet
+      by listing down the eic line and port-pin mapping.
+      The eic line mapping to the pin number requires a manipulation with an offset.
+
+  "#porta-special-pins-1-cells":
+    type: int
+    default: 2
+    description: |
+      Number of cells in porta-special-pins-1 property
+
   portb-special-pins-1:
     type: array
     default: [0, 0]
