@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+&porta {
+	status = "okay";
+};
+
 &sercom4 {
 	/* Internal loopback */
 	dipo = <0>;
