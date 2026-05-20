@@ -16,6 +16,7 @@ supported:
   - counter
   - entropy
   - gpio
+  - hwinfo
   - i2c
   - pinctrl
   - rtc
