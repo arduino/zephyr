@@ -108,6 +108,12 @@ tests:
       - sam_e54_xpro
       - pic32cx_sg61_cult
     filter: dt_alias_exists("pwm-test")
+  drivers.pwm.mchp_tcc7:
+    extra_args:
+      platform:pic32ck_gc01_cult/pic32ck2051gc01144:DTC_OVERLAY_FILE="boards/microchip/pic32ck_gc01_cult_tcc7.overlay"
+    platform_allow:
+      - pic32ck_gc01_cult
+    filter: dt_alias_exists("pwm-test")
   drivers.pwm.mchp_tc0:
     extra_args: DTC_OVERLAY_FILE="boards/microchip/sam_e54_xpro_tc0.overlay"
     platform_allow:
