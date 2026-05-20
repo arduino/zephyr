@@ -1888,17 +1888,17 @@ void clock_mclkperiph_init(const struct device *dev, uint32_t subsys_val, uint8_
 	} while (0)
 
 #define CLOCK_MCHP_ITERATE_PLL_OUT(subchild)                                                       \
-	do {                                                                                       \
+	{                                                                                          \
 		struct clock_pll_out_init pll_out_init = {0};                                      \
 		pll_out_init.subsys.val = DT_PROP(subchild, subsystem);                            \
 		pll_out_init.output_en = DT_PROP(subchild, pll_output_en);                         \
 		pll_out_init.output_division_factor =                                              \
 			DT_PROP(subchild, pll_output_division_factor);                             \
 		clock_pll_out_init(dev, &pll_out_init);                                            \
-	} while (0)
+	}
 
 #define CLOCK_MCHP_ITERATE_PLL(child)                                                              \
-	do {                                                                                       \
+	{                                                                                          \
 		struct clock_pll_init pll_init = {0};                                              \
 		pll_init.subsys.val = DT_PROP(child, subsystem);                                   \
 		pll_init.enable = DT_PROP(child, pll_enable);                                      \
@@ -1910,7 +1910,7 @@ void clock_mclkperiph_init(const struct device *dev, uint32_t subsys_val, uint8_
 		pll_init.freq_division_factor_int = DT_PROP(child, pll_freq_division_factor_int);  \
 		pll_init.freq_division_factor_rem = DT_PROP(child, pll_freq_division_factor_rem);  \
 		clock_pll_init(dev, &pll_init);                                                    \
-	} while (0)
+	}
 
 #define CLOCK_MCHP_PROCESS_RTC(node) clock_rtc_init(dev, DT_PROP(node, rtc_src));
 
