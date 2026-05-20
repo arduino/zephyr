@@ -38,6 +38,14 @@
 			#size-cells = <1>;
 		};
 
+		hwinfo: device_id@a0071e0 {
+			compatible = "microchip,hwinfo-g1";
+			reg = <0x0a0071e0 0x4>,
+			      <0x0a0071e4 0x4>,
+			      <0x0a0071e8 0x4>,
+			      <0x0a0071ec 0x4>;
+		};
+
 		flash1: flash@c000000 {
 			compatible = "soc-nv-flash";
 			#address-cells = <1>;
