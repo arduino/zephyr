@@ -52,6 +52,11 @@
 			#size-cells = <1>;
 		};
 
+		/* CFM CAL OTP region containing calibration data for USB */
+		cfm_calotp_usbfs: cfm_calotp_usbfs@a007190 {
+			reg = <0x0a007190 0x4>;
+		};
+
 		sram0: memory@20000000 {
 			compatible = "mmio-sram";
 		};
@@ -376,6 +381,24 @@
 			#io-channel-cells = <1>;
 			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_ADC_APB>,
 				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_ADC>;
+			clock-names = "mclk", "gclk";
+			status = "disabled";
+		};
+
+		usb0: usb@4502a000 {
+			compatible = "microchip,usb-g1";
+			reg = <0x4502a000 0x1fff>;
+			interrupts = <150 0>, <151 0>, <152 0>, <153 0>;
+			interrupt-names = "usb", "sof", "trcpt0", "trcpt1";
+			num-bidir-endpoints = <8>;
+			maximum-speed = "full-speed";
+			nvm-calib = <&cfm_calotp_usbfs>;
+			calib-mapping = <0x06 0x06 0x1f 0x05>,
+					<0x0 0x0 0x1f 0x29>,
+					<0xc 0xc 0x07 0x03>;
+			calib-mapping-names = "TRANSN", "TRANSP", "TRIM";
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_USB_APB>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_USB>;
 			clock-names = "mclk", "gclk";
 			status = "disabled";
 		};
