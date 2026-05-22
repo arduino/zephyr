@@ -193,8 +193,8 @@
 				compatible = "microchip,pic32ck-sg-gc-pll0out";
 
 				subsystem = <CLOCK_MCHP_PLL0_ID_OUT1>;
-				pll-output-division-factor = <8>;
-				pll-output-en = <0>;
+				pll-output-division-factor = <20>; /* 960 MHz / 20 = 48 MHz */
+				pll-output-en = <1>;
 			};
 
 			pll0out2: pll0out2 {
@@ -261,6 +261,21 @@
 			gclkgen-duty-50-50-en = <0>;
 			gclkgen-out-clock-signal = <0>;
 		};
+
+		/* Add GCLK for USB - 48 MHz from PLL0_OUT1 */
+		gclkgen2 {
+			subsystem = <CLOCK_MCHP_GCLKGEN_ID_GEN2>;
+			gclkgen-en = <1>;
+			gclkgen-run-in-standby-en = <0>;
+			gclkgen-ext-input-frequency = <0>;
+			gclkgen-src = "pll0_1";
+			gclkgen-output-off-val = "logic-level-0";
+			gclkgen-input-frequency = <0>;
+			gclkgen-div-select = "div-factor";
+			gclkgen-div-factor = <1>;
+			gclkgen-duty-50-50-en = <0>;
+			gclkgen-out-clock-signal = <0>;
+		};
 	};
 
 	gclkperiph: gclkperiph {
@@ -270,6 +285,12 @@
 		can0 {
 			subsystem = <CLOCK_MCHP_GCLKPERIPH_ID_CAN0>;
 			gclkperiph-src = "gclk0";
+			gclkperiph-en = <1>;
+		};
+
+		usb0 {
+			subsystem = <CLOCK_MCHP_GCLKPERIPH_ID_USB>;
+			gclkperiph-src = "gclk2";
 			gclkperiph-en = <1>;
 		};
 	};
@@ -282,6 +303,11 @@
 	mclkperiph: mclkperiph {
 		compatible = "microchip,pic32ck-sg-gc-mclkperiph";
 		#clock-cells = <1>;
+
+		usb0 {
+			subsystem = <CLOCK_MCHP_MCLKPERIPH_ID_USB_APB>;
+			mclk-en = <1>;
+		};
 	};
 };
 
@@ -371,6 +397,12 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	pinctrl-0 = <&sercom2_spi_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+zephyr_udc0: &usb0 {
+	pinctrl-0 = <&usb_dc_default>;
 	pinctrl-names = "default";
 	status = "okay";
 };
