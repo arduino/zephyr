@@ -19,4 +19,5 @@ supported:
   - pinctrl
   - spi
   - uart
+  - usbd
 vendor: microchip
