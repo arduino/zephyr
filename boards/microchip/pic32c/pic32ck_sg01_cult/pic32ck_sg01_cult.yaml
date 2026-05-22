@@ -14,6 +14,7 @@ supported:
   - clock_control
   - entropy
   - gpio
+  - hwinfo
   - i2c
   - pinctrl
   - spi
