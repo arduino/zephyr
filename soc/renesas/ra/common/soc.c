@@ -16,6 +16,20 @@ void soc_early_init_hook(void)
 	z_arm_nmi_set_handler(NMI_Handler);
 #endif /* CONFIG_RUNTIME_NMI */
 
+#if defined(CONFIG_SOC_SERIES_RA6M5)
+	/* The first-stage bootloader may hand off with stale ICU event links still
+	 * programmed in R_ICU->IELSR (they are not cleared by a software reset).
+	 * FSP's bsp_irq_cfg() only writes the non-zero entries of
+	 * g_interrupt_event_link_select[] (empty under dynamic interrupt numbering),
+	 * so leftover links survive. Such a link fires on an NVIC line with no
+	 * connected ISR as soon as the peripheral generates the event (e.g. SCI3
+	 * TXI/TEI driven by the PF1550 PMIC) -> spurious "Unhandled IRQn" fatal.
+	 * Wipe the whole table before any driver configures its own vectors. */
+	for (int i = 0; i < BSP_ICU_VECTOR_MAX_ENTRIES; i++) {
+		R_ICU->IELSR[i] = 0;
+	}
+#endif /* CONFIG_SOC_SERIES_RA6M5 */
+
 #if defined(CONFIG_DCACHE)
 	sys_cache_data_enable();
 #endif /* CONFIG_DCACHE */
