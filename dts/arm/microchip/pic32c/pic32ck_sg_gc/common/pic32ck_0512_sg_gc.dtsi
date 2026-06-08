@@ -5,14 +5,18 @@
  */
 / {
 	soc {
-		flash0: flash@8000000 {
-			reg = <0x08000000 DT_SIZE_K(128)>;
-			ranges = <0x0 0x08000000 DT_SIZE_K(128)>;
-		};
-
-		flash1: flash@c000000 {
-			reg = <0x0c000000 DT_SIZE_K(512)>;
-			ranges = <0x0 0x0c000000 DT_SIZE_K(512)>;
+		nvmctrl: flash-controller@44002000 {
+			flash0: flash@8000000 {
+				/* Reg size computation:
+				 * BFM: 128kB, Unused Region: 65408kB, PFM: 512kB
+				 */
+				reg = <0x08000000
+				       (DT_SIZE_K(128) + DT_SIZE_K(65408) + DT_SIZE_K(512))>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges = <0x0 0x08000000
+					  (DT_SIZE_K(128) + DT_SIZE_K(65408) + DT_SIZE_K(512))>;
+			};
 		};
 
 		sram0: memory@20000000 {
