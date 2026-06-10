@@ -16,8 +16,9 @@
 
 	chosen {
 		zephyr,sram = &sram0;
-		zephyr,flash = &flash1;
-		zephyr,code-partition = &code_partition;
+		zephyr,flash = &flash0;
+		zephyr,flash-controller = &nvmctrl;
+		zephyr,code-partition = &slot0_partition;
 		zephyr,console = &sercom5;
 		zephyr,shell-uart = &sercom5;
 		zephyr,canbus = &can0;
@@ -70,27 +71,43 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
+		/*
+		 * MCUboot partition layout for PIC32CK SG01 (128 KB BFM, 2 MB PFM):
+		 *
+		 * Offsets are relative to flash1 base (0x08000000).
+		 * The flash driver uses 0x0C000000 as base_addr.
+		 *
+		 *   slot0:   0x4000000 - 0x40FBFFF  (1008 KB) - primary image
+		 *   slot1:   0x40FC000 - 0x41F7FFF  (1008 KB) - upgrade image
+		 *   storage: 0x41F8000 - 0x41FFFFF  (32 KB)   - scratch / NV storage
+		 */
+
+		/* 128kB for boot partition */
 		boot_partition: partition@0 {
-			label = "boot_flash";
-			reg = <0x0 DT_SIZE_K(128)>;
-		};
-	};
-};
-
-&flash1 {
-	partitions {
-		compatible = "fixed-partitions";
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		code_partition: partition@0 {
-			label = "program_flash";
-			reg = <0x0 DT_SIZE_K(2032)>;
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(128)>;
 		};
 
-		storage_partition: partition@1fc000 {
+		/* 1008kB for slot0 partition */
+		slot0_partition: partition@4000000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x04000000 DT_SIZE_K(1008)>;
+		};
+
+		/* 1008kB for slot1 partition */
+		slot1_partition: partition@40fc000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-1";
+			reg = <0x040fc000 DT_SIZE_K(1008)>;
+		};
+
+		/* 32kB for storage partition */
+		storage_partition: partition@41f8000 {
+			compatible = "zephyr,mapped-partition";
 			label = "storage";
-			reg = <0x1fc000 DT_SIZE_K(16)>;
+			reg = <0x041f8000 DT_SIZE_K(32)>;
 		};
 	};
 };

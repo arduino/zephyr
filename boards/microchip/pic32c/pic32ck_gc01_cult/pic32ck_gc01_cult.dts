@@ -19,8 +19,9 @@
 
 	chosen {
 		zephyr,sram = &sram0;
-		zephyr,flash = &flash1;
-		zephyr,code-partition = &code_partition;
+		zephyr,flash = &flash0;
+		zephyr,flash-controller = &nvmctrl;
+		zephyr,code-partition = &slot0_partition;
 		zephyr,console = &sercom5;
 		zephyr,shell-uart = &sercom5;
 		zephyr,canbus = &can0;
@@ -84,30 +85,46 @@
 		#size-cells = <1>;
 		ranges;
 
+		/*
+		 * MCUboot partition layout for PIC32CK GC01 (128 KB BFM, 2 MB PFM):
+		 *
+		 * Offsets are relative to flash0 base (0x08000000).
+		 * BFM: 0x08000000 - 0x0801FFFF (128 KB)
+		 * Unimplemented: 0x08020000 - 0x0BFFFFFF
+		 * PFM: 0x0C000000 - 0x0DFFFFFF (2 MB)
+		 *
+		 *   boot:    0x0000000 - 0x001FFFF  (128 KB)  - MCUboot in BFM
+		 *   slot0:   0x4000000 - 0x40FBFFF  (1008 KB) - primary image in PFM
+		 *   slot1:   0x40FC000 - 0x41F7FFF  (1008 KB) - upgrade image in PFM
+		 *   storage: 0x41F8000 - 0x41FFFFF  (32 KB)   - NV storage in PFM
+		 */
+
+		/* 128kB for boot partition (BFM) */
 		boot_partition: partition@0 {
-			label = "boot_flash";
 			compatible = "zephyr,mapped-partition";
-			reg = <0x0 DT_SIZE_K(128)>;
-		};
-	};
-};
-
-&flash1 {
-	partitions {
-		#address-cells = <1>;
-		#size-cells = <1>;
-		ranges;
-
-		code_partition: partition@0 {
-			label = "program_flash";
-			compatible = "zephyr,mapped-partition";
-			reg = <0x0 DT_SIZE_K(2032)>;
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(128)>;
 		};
 
-		storage_partition: partition@1fc000 {
+		/* 1008kB for slot0 partition (PFM) */
+		slot0_partition: partition@4000000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x04000000 DT_SIZE_K(1008)>;
+		};
+
+		/* 1008kB for slot1 partition (PFM) */
+		slot1_partition: partition@40fc000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-1";
+			reg = <0x040fc000 DT_SIZE_K(1008)>;
+		};
+
+		/* 32kB for storage partition (PFM) */
+		storage_partition: partition@41f8000 {
+			compatible = "zephyr,mapped-partition";
 			label = "storage";
-			compatible = "zephyr,mapped-partition";
-			reg = <0x1fc000 DT_SIZE_K(16)>;
+			reg = <0x041f8000 DT_SIZE_K(32)>;
 		};
 	};
 };
