@@ -9,7 +9,18 @@ config NUM_IRQS
 config SYS_CLOCK_HW_CYCLES_PER_SEC
 	default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency)
 
+# When running under MCUboot, each application image is self-contained
+# in PFM (flash1) with its own vector table. The ROM_START_OFFSET
+# reserves space for the MCUboot image header.
+# 0x400 (1024 bytes) is required because VTOR alignment on Cortex-M33
+# with NUM_IRQS=158 needs next_power_of_2((16+158)*4) = 1024.
+# ROMSTART_RELOCATION_ROM must be disabled so the vector table lives
+# in FLASH (PFM) rather than being relocated to BFM.
+config ROM_START_OFFSET
+	default 0x400 if BOOTLOADER_MCUBOOT && !MCUBOOT
+
 config ROMSTART_RELOCATION_ROM
+	default n if BOOTLOADER_MCUBOOT || MCUBOOT
 	default y
 
 config ROMSTART_REGION_ADDRESS
