@@ -1,0 +1,36 @@
+sample:
+  name: Flash Read/Write Sample
+common:
+  tags:
+    - flash
+  depends_on: flash
+tests:
+  sample.drivers.flash.flash_read_write:
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      regex:
+        - "PFM storage: flash device is ready."
+        - "Test 1: PFM storage erase"
+        - "PFM storage erase succeeded!"
+        - "Test 2: PFM storage erase verification"
+        - "PFM storage erase verification succeeded!"
+        - "Test 3: PFM storage write"
+        - "PFM storage write succeeded!"
+        - "Test 4: PFM storage read"
+        - "PFM storage read succeeded!"
+        - "Test 5: PFM storage data verification"
+        - "PFM storage data read matches data written. Good!!"
+        - "BFM top: flash device is ready."
+        - "Test 6: BFM top erase"
+        - "BFM top erase succeeded!"
+        - "Test 7: BFM top erase verification"
+        - "BFM top erase verification succeeded!"
+        - "Test 8: BFM top write"
+        - "BFM top write succeeded!"
+        - "Test 9: BFM top read"
+        - "BFM top read succeeded!"
+        - "Test 10: BFM top data verification"
+        - "BFM top data read matches data written. Good!!"
+        - "All flash tests PASSED."
