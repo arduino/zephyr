@@ -67,9 +67,9 @@
 
 &flash0 {
 	partitions {
-		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		ranges;
 
 		/*
 		 * MCUboot partition layout for PIC32CK SG01 (128 KB BFM, 2 MB PFM):
