@@ -104,7 +104,7 @@ struct usbd_msg {
  */
 static inline const char *usbd_msg_type_string(const enum usbd_msg_type type)
 {
-	if (type >= 0 && type < USBD_MSG_MAX_NUMBER) {
+	if (type < USBD_MSG_MAX_NUMBER) {
 		return usbd_msg_type_list[type];
 	}
 
