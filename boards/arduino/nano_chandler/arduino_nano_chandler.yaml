@@ -13,4 +13,5 @@ supported:
   - pinctrl
   - uart
   - usbd
+  - eth
 vendor: arduino

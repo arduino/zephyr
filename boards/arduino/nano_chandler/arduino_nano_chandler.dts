@@ -7,6 +7,7 @@
 /dts-v1/;
 #include <microchip/pic32c/pic32ck_sg_gc/pic32ck_gc01/pic32ck1025gc01144.dtsi>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
 #include "arduino_nano_chandler-pinctrl.dtsi"
 
 / {
@@ -17,7 +18,6 @@
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash1;
 		zephyr,code-partition = &code_partition;
-		/* Console/shell on UART6 (SERCOM6), exposed on the user header (J4). */
 		zephyr,console = &sercom1;
 		zephyr,shell-uart = &sercom1;
 	};
@@ -51,23 +51,10 @@
 	};
 };
 
-/*
- * The flash driver binds to the first soc-nv-flash instance; strip the
- * compatible from the boot flash so the program flash (flash1) is picked.
- * ROMSTART_REGION_* only use the flash0 nodelabel reg, which is unaffected.
- */
 &flash0 {
 	/delete-property/ compatible;
 };
 
-/*
- * FCW/FCR flash controller ("NVMCTRL G3" driver). Note the pic32ck register
- * bases are swapped with respect to pic32cz_ca: FCW @ 0x44004000, FCR @
- * 0x44002000 (FCW_IRQn = 2).
- *
- * PIC32CK1025GC01144: 1 MB program flash, split 80/20:
- * loader 816 KiB / sketch 208 KiB (4 KiB erase-block aligned).
- */
 &nvmctrl {
 			compatible = "microchip,nvmctrl-g3";
 			reg = <0x44004000 0x7c>, <0x44002000 0x60>;
@@ -131,7 +118,8 @@
 		xosc-startup-time = <500000>;
 		xosc-clock-failure-detection-en = <0>;
 		xosc-safe-clock-frequency = <48>;
-		xosc-usbhs-ref-clock-div = "usbhs-pll-ref-xosc-clock-disabled";
+		/* USB HS UTMI PLL reference = XOSC / 1 = 16 MHz (valid UTMI ref). */
+		xosc-usbhs-ref-clock-div = "usbhs-pll-ref-xosc-clock-div-1";
 	};
 
 	xosc32k: xosc32k {
@@ -272,6 +260,11 @@
 			subsystem = <CLOCK_MCHP_MCLKPERIPH_ID_USB_APB>;
 			mclk-en = <1>;
 		};
+
+		usbhs0 {
+			subsystem = <CLOCK_MCHP_MCLKPERIPH_ID_USBHS_AHB>;
+			mclk-en = <1>;
+		};
 	};
 };
 
@@ -339,10 +332,36 @@
 	status = "okay";
 };
 
-/* USB FS device -> user header pins 2/4 (D+ = PD04, D- = PD03). */
-zephyr_udc0: &usb0 {
+&usb0 {
 	pinctrl-0 = <&usb_dc_default>;
 	pinctrl-names = "default";
+	status = "disabled";
+};
+
+zephyr_udc0: &hsusb0 {
 	status = "okay";
+};
+
+&gmac {
+	pinctrl-0 = <&gmac_rmii>;
+	pinctrl-names = "default";
+	zephyr,random-mac-address;
+	phy-handle = <&eth_phy>;
+	status = "okay";
+};
+
+&mdio {
+	pinctrl-0 = <&mdio_default>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	eth_phy: ethernet-phy@0 {
+		compatible = "microchip,ksz8081";
+		reg = <0>;
+		microchip,interface-type = "rmii-25MHz";
+		reset-gpios = <&portb 15 GPIO_ACTIVE_LOW>;
+		int-gpios = <&portb 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		status = "okay";
+	};
 };
 

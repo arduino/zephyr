@@ -39,4 +39,26 @@
 				 <PD3H_USB_DM>;
 		};
 	};
+
+	/* Ethernet RMII (mux L) -> KSZ8081 PHY. */
+	gmac_rmii: gmac_rmii {
+		group1 {
+			pinmux = <PC0L_ETH_REF_CLK>,	/* 50 MHz RMII ref clock */
+				 <PC10L_ETH_RXDV>,	/* CRS_DV */
+				 <PC7L_ETH_RXD0>,
+				 <PC6L_ETH_RXD1>,
+				 <PC9L_ETH_RXER>,
+				 <PC11L_ETH_TXEN>,
+				 <PC12L_ETH_TXD0>,
+				 <PC13L_ETH_TXD1>;
+		};
+	};
+
+	/* Ethernet MDIO management bus (mux L). */
+	mdio_default: mdio_default {
+		group1 {
+			pinmux = <PC3L_ETH_MDC>,
+				 <PC4L_ETH_MDIO>;
+		};
+	};
 };
