@@ -32,6 +32,62 @@
 		};
 	};
 
+	/* TCC1 outputs used by RGB LED and D2/D3. */
+	tcc1_pwm_default: tcc1_pwm_default {
+		group1 {
+			pinmux = <PC15F_TCC1_WO0>,
+				 <PC16F_TCC1_WO1>,
+				 <PC17F_TCC1_WO2>,
+				 <PC19F_TCC1_WO4>,
+				 <PC20F_TCC1_WO5>;
+		};
+	};
+
+	tcc2_pwm_default: tcc2_pwm_default {
+		group1 {
+			pinmux = <PD11F_TCC2_WO2>;
+		};
+	};
+
+	tcc3_pwm_default: tcc3_pwm_default {
+		group1 {
+			pinmux = <PB11G_TCC3_WO6>;
+		};
+	};
+
+	tcc4_pwm_default: tcc4_pwm_default {
+		group1 {
+			pinmux = <PA20F_TCC4_WO0>,
+				 <PA21F_TCC4_WO1>;
+		};
+	};
+
+	tcc5_pwm_default: tcc5_pwm_default {
+		group1 {
+			pinmux = <PA23F_TCC5_WO1>;
+		};
+	};
+
+	tcc6_pwm_default: tcc6_pwm_default {
+		group1 {
+			pinmux = <PB24F_TCC6_WO1>;
+		};
+	};
+
+	/* A0..A7 analog inputs: A0=PB12, A1=PA05, ..., A7=PA10. */
+	adc0_default: adc0_default {
+		group1 {
+			pinmux = <PB12B_ADC_VINP11>,
+				 <PA5B_ADC_VINP1>,
+				 <PA6B_ADC_VINP2>,
+				 <PA7B_ADC_VINP3>,
+				 <PA11B_ADC_VINP7>,
+				 <PA12B_ADC_VINP8>,
+				 <PA9B_ADC_VINP5>,
+				 <PA10B_ADC_VINP6>;
+		};
+	};
+
 	/* USB FS device -> user header pins 2/4 (D+ = PD04, D- = PD03). */
 	usb_dc_default: usb_dc_default {
 		group1 {
