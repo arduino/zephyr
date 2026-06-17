@@ -129,8 +129,10 @@ static int stm32_vref_init(const struct device *dev)
 	k_mutex_init(&data->mutex);
 
 	if (!device_is_ready(data->adc)) {
-		LOG_ERR("Device %s is not ready", data->adc->name);
-		return -ENODEV;
+		if (device_init(data->adc) < 0) {
+			LOG_ERR("Device %s is not ready", data->adc->name);
+			return -ENODEV;
+		}
 	}
 
 	*asp = (struct adc_sequence){
