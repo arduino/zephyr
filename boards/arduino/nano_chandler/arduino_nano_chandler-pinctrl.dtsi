@@ -32,12 +32,35 @@
 		};
 	};
 
-	/* TCC1 outputs used by D2/D3 */
+	/* I2C / QWIIC connector -> PB04 (SDA) / PB05 (SCL). */
+	sercom4_i2c_default: sercom4_i2c_default {
+		group1 {
+			pinmux = <PB4C_SERCOM4_PAD0>,	/* SDA = PB04 */
+				 <PB5C_SERCOM4_PAD1>;	/* SCL = PB05 */
+		};
+	};
+
+	sercom3_i2c_default: sercom3_i2c_default {
+		group1 {
+			pinmux = <PB21C_SERCOM3_PAD0>,	/* SDA = PB21 */
+				 <PB22C_SERCOM3_PAD1>;	/* SCL = PB22 */
+		};
+	};
+
+	/* CAN0 -> PB08 (TX) / PB09 (RX). */
+	can0_default: can0_default {
+		group1 {
+			pinmux = <PB8H_CAN0_TX>,
+				 <PB9H_CAN0_RX>;
+		};
+	};
+
+	/* TCC1 outputs used by RGB LED and D2/D3. */
 	tcc1_pwm_default: tcc1_pwm_default {
 		group1 {
 			pinmux = /* <PC15F_TCC1_WO0>,
 				 	<PC16F_TCC1_WO1>,
-				 	<PC17F_TCC1_WO2>, */ 
+				 	<PC17F_TCC1_WO2>, */
 					<PC19F_TCC1_WO4>,
 				 	<PC20F_TCC1_WO5>;
 		};
@@ -74,10 +97,10 @@
 		};
 	};
 
-	/* A0..A7 analog inputs: A0=PB12, A1=PA05, ..., A7=PA10. */
 	adc0_default: adc0_default {
 		group1 {
-			pinmux = <PB12B_ADC_VINP11>,
+			pinmux = <PB1B_ADC_VREFP0>,
+				 <PB12B_ADC_VINP11>,
 				 <PA5B_ADC_VINP1>,
 				 <PA6B_ADC_VINP2>,
 				 <PA7B_ADC_VINP3>,
