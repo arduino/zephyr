@@ -1,0 +1,519 @@
+/*
+ * Copyright (c) 2026 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <st/h5/stm32h5f5Xj.dtsi>
+#include <st/h5/stm32h5f5ljhxq-pinctrl.dtsi>
+#include <zephyr/dt-bindings/sensor/qdec_stm32.h>
+#include <zephyr/dt-bindings/led/led.h>
+#include <zephyr/dt-bindings/clock/stm32h5_clock.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	leds: leds {
+		compatible = "gpio-leds";
+
+		blue_led_0: led_1 {
+			gpios = <&gpiof 4 GPIO_ACTIVE_LOW>;
+			label = "BLUE0";
+		};
+
+		green_led_0: led_2 {
+			gpios = <&gpioi 14 GPIO_ACTIVE_LOW>;
+			label = "GREEN0";
+		};
+
+		red_led_0: led_3 {
+			gpios = <&gpioi 12 GPIO_ACTIVE_LOW>;
+			label = "RED0";
+		};
+
+		blue_led_1: led_4 {
+			gpios = <&gpiof 2 GPIO_ACTIVE_LOW>;
+			label = "BLUE1";
+		};
+
+		green_led_1: led_5 {
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			label = "GREEN1";
+		};
+
+		red_led_1: led_6 {
+			gpios = <&gpiok 13 GPIO_ACTIVE_LOW>;
+			label = "RED1";
+		};
+
+		blue_led_2: led_7 {
+			gpios = <&gpioi 5 GPIO_ACTIVE_LOW>;
+			label = "BLUE2";
+		};
+
+		green_led_2: led_8 {
+			gpios = <&gpioe 2 GPIO_ACTIVE_LOW>;
+			label = "GREEN2";
+		};
+
+		red_led_2: led_9 {
+			gpios = <&gpioi 7 GPIO_ACTIVE_LOW>;
+			label = "RED2";
+		};
+
+		radio_led: led_10 {
+			gpios = <&gpiog 15 GPIO_ACTIVE_HIGH>;
+			label = "GREEN3";
+		};
+
+		eth_led: led_11 {
+			gpios = <&gpiob 7 GPIO_ACTIVE_HIGH>;
+			label = "BLUE3";
+		};
+	};
+
+	rgb_led_0: led0 {
+		compatible = "leds-group-multicolor";
+
+		leds = <&red_led_0>, <&green_led_0>, <&blue_led_0>;
+		color-mapping = <LED_COLOR_ID_RED>,
+				<LED_COLOR_ID_GREEN>,
+				<LED_COLOR_ID_BLUE>;
+	};
+
+	rgb_led_1: led1 {
+		compatible = "leds-group-multicolor";
+
+		leds = <&red_led_1>, <&green_led_1>, <&blue_led_1>;
+		color-mapping = <LED_COLOR_ID_RED>,
+				<LED_COLOR_ID_GREEN>,
+				<LED_COLOR_ID_BLUE>;
+	};
+
+	rgb_led_2: led2 {
+		compatible = "leds-group-multicolor";
+
+		leds = <&red_led_2>, <&green_led_2>, <&blue_led_2>;
+		color-mapping = <LED_COLOR_ID_RED>,
+				<LED_COLOR_ID_GREEN>,
+				<LED_COLOR_ID_BLUE>;
+	};
+
+	vbus_enable: vbus_enable {
+		compatible = "regulator-fixed";
+		regulator-name = "vbus_enable";
+		enable-gpios = <&gpiok 3 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <20000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+
+		button0: button_0 {
+			gpios = <&gpioc 3 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			zephyr,code = <INPUT_KEY_0>;
+			label = "Push button";
+		};
+	};
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(64)>;
+		};
+
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x00010000 DT_SIZE_K(2016)>;
+		};
+
+		slot1_partition: partition@100000 {
+			label = "image-1";
+			reg = <0x00208000 DT_SIZE_K(2016)>;
+		};
+	};
+};
+
+&otghs_phy {
+	clocks = <&rcc STM32_CLOCK(AHB2, 13)>,
+	         <&rcc STM32_SRC_HSE OTGHS_SEL(2)>,
+		 <&rcc STM32_SRC_HSE OTGPHYREFCK_SEL(10)>;
+	status = "okay";
+};
+
+zephyr_udc0: &usbotg_hs {
+	phys = <&otghs_phy>;
+	maximum-speed = "high-speed";
+	pinctrl-0 = <>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+zephyr_udc1: &usbotg_fs {
+	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&ucpd1 {
+	psc-ucpdclk = <2>;
+	hbitclkdiv = <14>;
+	pinctrl-0 = <&ucpd1_cc1_pb13 &ucpd1_cc2_pb14>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/*
+ * ------------------------------- CLOCKS
+ */
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(48)>;
+	status = "okay";
+};
+
+&clk_hsi48 {
+	crs-usb-sof;
+	status = "okay";
+};
+
+&clk_hsi {
+	status = "okay";
+};
+
+&clk_lse {
+	status = "okay";
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&lptim4 {
+	clocks = <&rcc STM32_CLOCK(APB3, 13)>,
+		 <&rcc STM32_SRC_LSI LPTIM4_SEL(4)>;
+	status = "okay";
+};
+
+
+&pll {
+	div-m = <12>;
+	mul-n = <125>;
+	div-p = <2>;
+	div-q = <2>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&pll2 {
+	div-m = <4>;
+	mul-n = <20>;
+	div-p = <2>;
+	div-q = <2>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&pll3 {
+	div-m = <6>;
+	mul-n = <32>;
+	div-p = <2>;
+	div-q = <4>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(250)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <1>;
+	apb2-prescaler = <1>;
+	apb3-prescaler = <1>;
+};
+
+/*
+ * SPI
+ */
+
+/* spi to radio controller */
+&spi1 {
+	pinctrl-0 = <&spi1_sck_pa5 &spi1_miso_pa6 &spi1_mosi_pa7>;
+	pinctrl-names = "default";
+	/delete-property/ cs-gpios;
+	/*cs-gpios = <&gpiob 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;*/
+	status = "okay";
+
+	st67w611m1: st67w611m1@0 {
+		compatible = "st,st67w611m1";
+		reg = <0>;
+		spi-max-frequency = <DT_FREQ_M(40)>;
+		chip-select-gpios = <&gpioa 4 GPIO_ACTIVE_HIGH>;
+		ready-gpios = <&gpiob 9 GPIO_ACTIVE_HIGH>;
+		chip-en-gpios = <&gpioi 6 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
+
+/* to mezza1 but unused */
+&spi3 {
+	pinctrl-0 = <&spi3_sck_pc10 &spi3_miso_pc11 &spi3_mosi_pc12 &spi3_nss_pa15>;
+	pinctrl-names = "default";
+	/*cs-gpios = <&gpioa 15 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;*/
+};
+
+/* SD card */
+&pinctrl {
+	spi4_sck_pe12: spi4_sck_pe12 {
+		slew-rate = "low-speed";
+	};
+
+	spi4_miso_pe13: spi4_miso_pe13 {
+		slew-rate = "low-speed";
+	};
+
+	spi4_mosi_pe14: spi4_mosi_pe14 {
+		slew-rate = "low-speed";
+	};
+
+	spi4_nss_pe11: spi4_nss_pe11 {
+		slew-rate = "low-speed";
+	};
+};
+
+&spi4 {
+	pinctrl-0 = <&spi4_sck_pe12 &spi4_miso_pe13 &spi4_mosi_pe14 &spi4_nss_pe11>;
+	pinctrl-names = "default";
+	clocks = <&rcc 0xa4 0x80000>,
+		 <&rcc STM32_SRC_PLL3_Q SPI4_SEL(2)>;
+	dmas = <&gpdma1 0 48
+		(STM32_DMA_MEMORY_TO_PERIPH | STM32_DMA_PERIPH_NO_INC | STM32_DMA_MEM_INC |
+		 STM32_DMA_PERIPH_8BITS)>,
+	       <&gpdma1 1 47
+		(STM32_DMA_PERIPH_TO_MEMORY | STM32_DMA_PERIPH_NO_INC | STM32_DMA_MEM_INC |
+		 STM32_DMA_PERIPH_8BITS)>;
+	dma-names = "tx", "rx";
+	status = "okay";
+
+	sdhc0: sdhc@0 {
+		compatible = "zephyr,sdhc-spi-slot";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+		cd-gpios = <&gpioe 1 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		status = "okay";
+
+		mmc {
+			compatible = "zephyr,sdmmc-disk";
+			disk-name = "SD";
+			status = "okay";
+		};
+	};
+};
+
+/*
+ * I2C
+ */
+
+/* QWIIC */
+&i2c1 { //I3C1 ****
+	pinctrl-0 = <&i2c1_scl_pk9 &i2c1_sda_pk10>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* expansion connector */
+&i2c2 { // I3C2 ****
+	pinctrl-0 = <&i2c2_scl_ph4 &i2c2_sda_ph5>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* secure element */
+&i2c4 {
+	clock-frequency = <I2C_BITRATE_FAST>;
+	pinctrl-0 = <&i2c4_scl_pg7 &i2c4_sda_pg6>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/*
+ * UART
+ */
+
+/* expansion uart */
+&usart2 {
+	pinctrl-0 = <&usart2_tx_pa2 &usart2_rx_pa3>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+/* RS485 */
+&uart7 {
+	pinctrl-0 = <&uart7_tx_pf7 &uart7_rx_pf6>;
+	pinctrl-names = "default";
+	current-speed = <9600>;
+	status = "okay";
+	modbus0 {
+		compatible = "zephyr,modbus-serial";
+		status = "okay";
+		de-gpios = <&gpiof 8 GPIO_ACTIVE_HIGH>;
+		re-gpios = <&gpiof 9 GPIO_ACTIVE_LOW>;
+	};
+};
+
+/* modem */
+&uart9 {
+	pinctrl-0 = <&uart9_tx_pg1 &uart9_rx_pg0>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+/*
+ *  ADC
+ */
+
+&adc2 {
+	clocks = <&rcc STM32_CLOCK(AHB2, 10)>,
+		 <&rcc STM32_SRC_HCLK ADCDAC_SEL(0)>;
+	clock-names = "adcx", "adc_ker";
+	pinctrl-0 = <&adc2_inp2_pf13 &adc2_inp6_pf14>;
+	pinctrl-names = "default";
+	st,adc-clock-source = "ASYNC";
+	st,adc-prescaler = <6>;
+	status = "okay";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@2 {
+		reg = <2>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@6 {
+		reg = <6>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+/*
+ *  CAN
+ */
+
+/* connettori su scheda */
+&fdcan1 {
+	pinctrl-0 = <&fdcan1_rx_ph14 &fdcan1_tx_ph13>;
+	pinctrl-names = "default";
+	clk-divider = <1>;
+	//phys = <&can_transceiver0>;
+	status = "okay";
+};
+
+/* connettore di espansione */
+&fdcan2 {
+	pinctrl-0 = <&fdcan2_rx_pb5 &fdcan2_tx_pb6>;
+	pinctrl-names = "default";
+	clk-divider = <1>;
+	status = "okay";
+};
+
+/*
+ * ETHERNET
+ */
+&mac {
+	/* Only the RMII data and clock pins go here */
+	pinctrl-0 = <&eth_rmii_ref_clk_pa1
+		     &eth_rmii_rxd0_pe4
+		     &eth_rmii_rxd1_pe5
+		     &eth_rmii_crs_dv_pd1
+		     &eth_mii_rx_er_pi10
+		     &eth_rmii_tx_en_pg11
+		     &eth_rmii_txd0_pg13
+		     &eth_rmii_txd1_pg14>;
+	pinctrl-names = "default";
+	phy-connection-type = "rmii";
+	/* TODO: get mac address from unique serial number */
+	zephyr,random-mac-address;
+	phy-handle = <&phy0>;
+	status = "okay";
+};
+
+&mdio {
+	/* The management pins go here! */
+	pinctrl-0 = <&eth_mdc_pb3 &eth_mdio_pb4>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	phy0: ethernet-phy@0 {
+		compatible = "microchip,ksz8081";
+		reg = <0>;
+		microchip,interface-type = "rmii-25MHz";
+		reset-gpios = <&gpiod 3 GPIO_ACTIVE_LOW>;
+		int-gpios = <&gpioj 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		status = "okay";
+	};
+};
+
+/*
+ * RTC
+ */
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK(APB3, 21)>,
+		 <&rcc STM32_SRC_LSE RTC_SEL(1)>;
+	status = "okay";
+};
+
+/*
+ * DMA
+ */
+
+&gpdma1 {
+	status = "okay";
+};
+
+&gpdma2 {
+	status = "okay";
+};
+
+&iwdg {
+	status = "okay";
+};
+
+&vref {
+	status = "okay";
+};
+
+&vbat {
+	status = "okay";
+};
+
+&timers15 {
+	st,prescaler = <254>;
+	status = "okay";
+
+	pwm15: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim15_ch1_pi14>;
+		pinctrl-names = "default";
+		four-channel-capture-support;
+	};
+};
