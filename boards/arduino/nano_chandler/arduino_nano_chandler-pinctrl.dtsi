@@ -32,14 +32,14 @@
 		};
 	};
 
-	/* TCC1 outputs used by RGB LED and D2/D3. */
+	/* TCC1 outputs used by D2/D3 */
 	tcc1_pwm_default: tcc1_pwm_default {
 		group1 {
-			pinmux = <PC15F_TCC1_WO0>,
-				 <PC16F_TCC1_WO1>,
-				 <PC17F_TCC1_WO2>,
-				 <PC19F_TCC1_WO4>,
-				 <PC20F_TCC1_WO5>;
+			pinmux = /* <PC15F_TCC1_WO0>,
+				 	<PC16F_TCC1_WO1>,
+				 	<PC17F_TCC1_WO2>, */ 
+					<PC19F_TCC1_WO4>,
+				 	<PC20F_TCC1_WO5>;
 		};
 	};
 
