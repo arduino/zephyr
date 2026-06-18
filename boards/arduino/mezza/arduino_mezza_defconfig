@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Enable GPIO
+CONFIG_GPIO=y
+
+# Enable MPU
+CONFIG_ARM_MPU=y
+
+# Enable HW stack protection
+CONFIG_HW_STACK_PROTECTION=y
+
+# Enable retain memory and change initialization priority because of
+# conflict with stm32 backup_sram initialization
+CONFIG_RETAINED_MEM=y
+CONFIG_RETENTION=y
+CONFIG_RETENTION_BOOT_MODE=y
+CONFIG_RETAINED_MEM_INIT_PRIORITY=95
+
+
