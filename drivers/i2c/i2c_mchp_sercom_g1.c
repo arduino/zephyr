@@ -1410,8 +1410,8 @@ static int i2c_mchp_transfer_cb(const struct device *dev, struct i2c_msg *msgs, 
 	}
 
 	for (uint8_t i = 0U; i < num_msgs; i++) {
-		if ((msgs[i].len == 0U) || (msgs[i].buf == NULL)) {
-			LOG_ERR("Invalid I2C message");
+		if ((msgs[i].len > 0U) && (msgs[i].buf == NULL)) {
+			LOG_ERR("Invalid I2C message: non-zero length but null buffer");
 			return -EINVAL;
 		}
 	}
@@ -1563,10 +1563,13 @@ static int i2c_validate_transfer_params(const struct i2c_mchp_dev_data *data, st
 		return -EBUSY;
 	}
 
-	/* Check for empty messages (invalid read/write). */
+	/* Check for messages with non-zero length but null buffer. Zero-length
+	 * messages (address-only) are valid and used for bus probing.
+	 */
 	for (uint8_t i = 0; i < num_msgs; i++) {
-		if (msgs[i].len == 0 || msgs[i].buf == NULL) {
-			LOG_ERR("Invalid transfer: message[%u] has null buffer or zero length", i);
+		if (msgs[i].len > 0 && msgs[i].buf == NULL) {
+			LOG_ERR("Invalid transfer: message[%u] has non-zero length but null buffer",
+				i);
 			return -EINVAL;
 		}
 	}
