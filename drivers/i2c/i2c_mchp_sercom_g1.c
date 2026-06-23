@@ -1790,13 +1790,13 @@ static int i2c_mchp_init(const struct device *dev)
 	int retval;
 
 	retval = clock_control_on(cfg->i2c_clock.clock_dev, cfg->i2c_clock.gclk_sys);
-	if (retval != I2C_MCHP_SUCCESS) {
+	if (retval != I2C_MCHP_SUCCESS && retval != -EALREADY) {
 		LOG_ERR("Failed to enable GCLK_SYS clock: %d", retval);
 		return retval;
 	}
 
 	retval = clock_control_on(cfg->i2c_clock.clock_dev, cfg->i2c_clock.mclk_sys);
-	if (retval != I2C_MCHP_SUCCESS) {
+	if (retval != I2C_MCHP_SUCCESS && retval != -EALREADY) {
 		LOG_ERR("Failed to enable main clock: %d", retval);
 		return retval;
 	}
