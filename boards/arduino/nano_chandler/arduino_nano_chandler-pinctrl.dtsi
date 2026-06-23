@@ -7,12 +7,11 @@
 #include <dt-bindings/pic32c/pic32ck_sg_gc/pic32ck_gc01/pic32ck2051gc01144-pinctrl.h>
 
 &pinctrl {
-	/* UART0 -> RS485 transceiver (THVD2410): TX/RX + RTS used as DE/RE */
+	/* UART0 -> RS485 transceiver (THVD2410): TX/RX only. DE and /RE are GPIOs. */
 	sercom0_uart_default: sercom0_uart_default {
 		group1 {
 			pinmux = <PD6C_SERCOM0_PAD0>,	/* TX  */
-				 <PD7C_SERCOM0_PAD1>,	/* RX  */
-				 <PD5C_SERCOM0_PAD2>;	/* RTS */
+				 <PD7C_SERCOM0_PAD1>;	/* RX  */
 		};
 	};
 
@@ -44,6 +43,26 @@
 		group1 {
 			pinmux = <PB21C_SERCOM3_PAD0>,	/* SDA = PB21 */
 				 <PB22C_SERCOM3_PAD1>;	/* SCL = PB22 */
+		};
+	};
+
+	/* SPI2 -> header pins. MOSI=PC21, MISO=PC23, SCK=PC22, CS=PC14. */
+	sercom2_spi_default: sercom2_spi_default {
+		group1 {
+			pinmux = <PC21C_SERCOM2_PAD0>,	/* MOSI */
+				 <PC23C_SERCOM2_PAD3>,	/* MISO */
+				 <PC22C_SERCOM2_PAD1>,	/* SCK  */
+				 <PC14C_SERCOM2_PAD2>;	/* CS   */
+		};
+	};
+
+	/* SPI5 -> header pins. MOSI=PA27, MISO=PA24, SCK=PA25, CS=PA26. */
+	sercom5_spi_default: sercom5_spi_default {
+		group1 {
+			pinmux = <PA27C_SERCOM5_PAD3>,	/* MOSI */
+				 <PA24C_SERCOM5_PAD0>,	/* MISO */
+				 <PA25C_SERCOM5_PAD1>,	/* SCK  */
+				 <PA26C_SERCOM5_PAD2>;	/* CS   */
 		};
 	};
 

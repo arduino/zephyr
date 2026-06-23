@@ -298,7 +298,7 @@
 	status = "okay";
 };
 
-/* UART0 -> RS485 PHY (THVD2410). TX=PD06/PAD0, RX=PD07/PAD1, RTS(DE)=PD05/PAD2. */
+/* UART0 -> RS485 PHY (THVD2410). TX=PD06/PAD0, RX=PD07/PAD1, DE=PD05, /RE=PD12. */
 &sercom0 {
 	compatible = "microchip,sercom-g1-uart";
 	#address-cells = <1>;
@@ -308,7 +308,7 @@
 	parity = "none";
 	stop-bits = "1";
 	rxpo = <1>;	/* RX = PAD1 */
-	txpo = <3>;	/* TX = PAD0, RTS = PAD2, no CTS */
+	txpo = <0>;	/* TX = PAD0 */
 	pinctrl-0 = <&sercom0_uart_default>;
 	pinctrl-names = "default";
 	status = "okay";
@@ -363,6 +363,28 @@
 	#size-cells = <0>;
 	clock-frequency = <I2C_BITRATE_FAST>;
 	pinctrl-0 = <&sercom3_i2c_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&sercom2 {
+	compatible = "microchip,sercom-g1-spi";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	dipo = <3>; /* MISO = PAD3 */
+	dopo = <0>; /* MOSI = PAD0, SCK = PAD1, CS = PAD2 */
+	pinctrl-0 = <&sercom2_spi_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&sercom5 {
+	compatible = "microchip,sercom-g1-spi";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	dipo = <0>; /* MISO = PAD0 */
+	dopo = <2>; /* MOSI = PAD3, SCK = PAD1, CS = PAD2 */
+	pinctrl-0 = <&sercom5_spi_default>;
 	pinctrl-names = "default";
 	status = "okay";
 };
