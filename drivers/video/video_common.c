@@ -20,6 +20,8 @@
 
 LOG_MODULE_REGISTER(video_common, CONFIG_VIDEO_LOG_LEVEL);
 
+#if !defined(CONFIG_VIDEO_BUFFER_POOL_ALLOC_OPS)
+
 #if defined(CONFIG_VIDEO_BUFFER_USE_SHARED_MULTI_HEAP)
 #include <zephyr/multi_heap/shared_multi_heap.h>
 
@@ -35,15 +37,38 @@ K_HEAP_DEFINE(video_buffer_pool,
 #endif
 
 static struct video_buffer video_buf[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
-
 struct mem_block {
 	void *data;
 };
 
 static struct mem_block video_block[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
 
+#endif
+
+#if defined(CONFIG_VIDEO_BUFFER_POOL_ALLOC_OPS)
+static const struct video_user_buffer_ops *user_buffer_ops;
+
+int video_register_user_buffer_ops(const struct video_user_buffer_ops *ops)
+{
+	if (ops == NULL) {
+		return -EINVAL;
+	}
+
+	user_buffer_ops = ops;
+
+	return 0;
+}
+
+#endif
+
 struct video_buffer *video_buffer_aligned_alloc(size_t size, size_t align, k_timeout_t timeout)
 {
+#if defined(CONFIG_VIDEO_BUFFER_POOL_ALLOC_OPS)
+	if ((user_buffer_ops != NULL) && (user_buffer_ops->aligned_alloc != NULL)) {
+		return user_buffer_ops->aligned_alloc(size, align, timeout);
+	}
+	return NULL;
+#else
 	struct video_buffer *vbuf = NULL;
 	struct mem_block *block;
 	int i;
@@ -72,6 +97,7 @@ struct video_buffer *video_buffer_aligned_alloc(size_t size, size_t align, k_tim
 	vbuf->bytesused = 0;
 
 	return vbuf;
+#endif
 }
 
 struct video_buffer *video_buffer_alloc(size_t size, k_timeout_t timeout)
@@ -81,6 +107,12 @@ struct video_buffer *video_buffer_alloc(size_t size, k_timeout_t timeout)
 
 void video_buffer_release(struct video_buffer *vbuf)
 {
+#if defined(CONFIG_VIDEO_BUFFER_POOL_ALLOC_OPS)
+	if ((user_buffer_ops != NULL) && (user_buffer_ops->release != NULL)) {
+		user_buffer_ops->release(vbuf);
+		return;
+	}
+#else
 	struct mem_block *block = NULL;
 	int i;
 
@@ -98,6 +130,7 @@ void video_buffer_release(struct video_buffer *vbuf)
 	if (block) {
 		VIDEO_COMMON_FREE(block->data);
 	}
+#endif
 }
 
 int video_format_caps_index(const struct video_format_cap *fmts, const struct video_format *fmt,
