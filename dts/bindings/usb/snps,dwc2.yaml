@@ -76,3 +76,12 @@ properties:
     description: |
       IN Endpoint Transmit fifo depths. Values must not exceed their respective
       DIEPTXFn.INEPnTxFDep power-on values.
+
+  dr-mode:
+    type: string
+    enum:
+      - "host"
+      - "peripheral"
+    description: |
+      Role of the dual-role controller. For now, this property is used to
+      force the controller's role. Dual mode is not yet supported.
