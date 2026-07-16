@@ -566,6 +566,29 @@ int video_transform_cap(const struct device *const dev,
 			struct video_format_cap *const res_cap,
 			enum video_buf_type type, uint16_t ind);
 
+#if defined(CONFIG_VIDEO_BUFFER_POOL_ALLOC_OPS)
+/**
+ * @brief User-managed video buffer callbacks.
+ *
+ * Register these callbacks from user code to provide buffer allocation/release hooks
+ * to the video driver at runtime.
+ */
+struct video_user_buffer_ops {
+	struct video_buffer *(*aligned_alloc)(size_t size, size_t align, k_timeout_t timeout);
+	int (*release)(struct video_buffer *buf);
+};
+
+/**
+ * @brief Register user-managed video buffer callbacks.
+ *
+ * @param ops Pointer to callbacks. Must remain valid for the program lifetime.
+ *
+ * @retval 0 If successful.
+ * @retval -EINVAL If @p ops is NULL.
+ */
+int video_register_user_buffer_ops(const struct video_user_buffer_ops *ops);
+#endif
+
 /**
  * @brief Search for a format that matches in a list of capabilities
  *
