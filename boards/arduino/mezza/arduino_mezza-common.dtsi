@@ -131,12 +131,42 @@
 
 		slot0_partition: partition@10000 {
 			label = "image-0";
-			reg = <0x00010000 DT_SIZE_K(2016)>;
+			reg = <0x00010000 DT_SIZE_K(1504)>; // 1504 K =  0x178000
 		};
 
-		slot1_partition: partition@100000 {
+		slot1_partition: partition@188000 {
 			label = "image-1";
-			reg = <0x00208000 DT_SIZE_K(2016)>;
+			reg = <0x00188000 DT_SIZE_K(1504)>;
+		};
+
+		user_sketch: partition@300000 {
+			label = "user_sketch";
+			reg = <0x00300000 DT_SIZE_K(1024)>;
+		};
+	};
+};
+
+&backup_sram {
+	status = "okay";
+
+	retainedmem {
+		compatible = "zephyr,retained-ram";
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		retention0: retention@0 {
+			compatible = "zephyr,retention";
+			status = "okay";
+			reg = <0x0 0x4>;
+			prefix = [A9 34 BC];
+		};
+
+		retention1: retention@4 {
+			compatible = "zephyr,retention";
+			status = "okay";
+			reg = <0x4 0x5>;
+			prefix = [4d 96 5a 6b];
 		};
 	};
 };
