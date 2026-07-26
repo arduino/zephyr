@@ -250,8 +250,10 @@ nxp_8080_touch_panel_i2c: &flexcomm2_lpi2c2 {
 	pinctrl-1 = <&pinmux_lpadc0_arduino>;
 	pinctrl-names = "default", "arduino";
 	zephyr,deferred-init;
-	/* Alt1: use VREFH (measured 3.3V on this board) instead of the SoC
-	 * default Alt2 (internal VREF regulator, capped at 2.1V). */
+	/*
+	 * Alt1: use VREFH (measured 3.3V on this board) instead of the SoC
+	 * default Alt2 (internal VREF regulator, capped at 2.1V).
+	 */
 	voltage-ref = <0>;
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -376,8 +378,10 @@ zephyr_mipi_dbi_parallel: &flexio0_lcd {
 
 &sc_timer {
 	pinctrl-0 = <&pinmux_sctimer>;
-	/* SCT0_OUT5 (D3) reuses the existing sc_timer instance (SCT0_OUT0
-	 * is unrelated, reserved for onboard use). */
+	/*
+	 * SCT0_OUT5 (D3) reuses the existing sc_timer instance (SCT0_OUT0
+	 * is unrelated, reserved for onboard use).
+	 */
 	pinctrl-1 = <&pinmux_sctimer_arduino>;
 	pinctrl-names = "default", "arduino";
 	zephyr,deferred-init;
