@@ -160,6 +160,44 @@
 		};
 	};
 
+	/*
+	 * Pin order here must match the order ctimer0_pwm entries appear in
+	 * the zephyr,user "pwms" property (state_pin_index_from_spec_index()
+	 * indexes into this group by per-device occurrence order, not by
+	 * channel number).
+	 *
+	 * CT0_MAT3 (D10) is intentionally not included: CTimer requires one
+	 * of its 4 match channels to be reserved internally as the period/
+	 * reset channel, so only 3 of MAT0-3 can be independent PWM pulse
+	 * outputs at once. D10 also carries SPI SS, so MAT0-2 (D9/D13/D12)
+	 * were kept instead.
+	 */
+	pinmux_ctimer0_pwm_arduino: pinmux_ctimer0_pwm_arduino {
+		group0 {
+			pinmux = <CT0_MAT0_PIO0_10>,  /* D9  MAT0 */
+				<CT0_MAT1_PIO0_25>,   /* D13 MAT1 */
+				<CT0_MAT2_PIO0_26>;   /* D12 MAT2 */
+			slew-rate = "fast";
+			drive-strength = "low";
+		};
+	};
+
+	pinmux_ctimer1_pwm_arduino: pinmux_ctimer1_pwm_arduino {
+		group0 {
+			pinmux = <CT1_MAT0_PIO1_2>;  /* D6 */
+			slew-rate = "fast";
+			drive-strength = "low";
+		};
+	};
+
+	pinmux_ctimer3_pwm_arduino: pinmux_ctimer3_pwm_arduino {
+		group0 {
+			pinmux = <CT3_MAT3_PIO1_21>;  /* D5 */
+			slew-rate = "fast";
+			drive-strength = "low";
+		};
+	};
+
 	pinmux_flexpwm1_pwm1: pinmux_flexpwm1_pwm1 {
 		group0 {
 			pinmux = <PWM1_A1_PIO2_4>,
@@ -287,6 +325,14 @@
 			slew-rate = "fast";
 			drive-strength = "low";
 			input-enable;
+		};
+	};
+
+	pinmux_sctimer_arduino: pinmux_sctimer_arduino {
+		group0 {
+			pinmux = <SCT0_OUT5_PIO1_23>;  /* D3 */
+			slew-rate = "fast";
+			drive-strength = "low";
 		};
 	};
 

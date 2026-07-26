@@ -10,6 +10,7 @@
 #include <zephyr/dt-bindings/gpio/dvp-20pin-connector.h>
 #include <zephyr/dt-bindings/adc/adc.h>
 #include <zephyr/dt-bindings/adc/mcux-lpadc.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
 
 / {
 	aliases{
@@ -293,6 +294,55 @@ nxp_8080_touch_panel_i2c: &flexcomm2_lpi2c2 {
 	};
 };
 
+/*
+ * CTimer match outputs are re-purposed as PWM outputs for analogWrite(),
+ * sharing the pin with digital-pin-gpios via the "arduino" pinctrl state.
+ * These CTimer instances are declared as plain counters ("nxp,lpc-ctimer")
+ * at the SoC level; overriding to "nxp,ctimer-pwm" exposes the same
+ * hardware through the PWM API instead.
+ *
+ * CT0_MAT0 (D9), CT0_MAT1 (D13) and CT0_MAT2 (D12) belong to the same
+ * ctimer0 instance (CT0_MAT3/D10 is deliberately not used - CTimer needs
+ * one of its 4 match channels reserved internally as the period/reset
+ * channel, so only 3 of MAT0-3 can be independent PWM outputs at once).
+ * D12/D13 also carry the SPI MISO/SCK alternate function
+ * (flexcomm1_lpspi1) - using analogWrite() on those pins reclaims the pin
+ * mux from SPI and is not restored automatically, so SPI and PWM on those
+ * specific pins are mutually exclusive within a single sketch.
+ */
+ctimer0_pwm: &ctimer0 {
+	compatible = "nxp,ctimer-pwm";
+	status = "okay";
+	zephyr,deferred-init;
+	prescaler = <0>;
+	pinctrl-0 = <&pinmux_ctimer0_pwm_arduino>;
+	pinctrl-1 = <&pinmux_ctimer0_pwm_arduino>;
+	pinctrl-names = "default", "arduino";
+	#pwm-cells = <3>;
+};
+
+ctimer1_pwm: &ctimer1 {
+	compatible = "nxp,ctimer-pwm";
+	status = "okay";
+	zephyr,deferred-init;
+	prescaler = <0>;
+	pinctrl-0 = <&pinmux_ctimer1_pwm_arduino>;
+	pinctrl-1 = <&pinmux_ctimer1_pwm_arduino>;
+	pinctrl-names = "default", "arduino";
+	#pwm-cells = <3>;
+};
+
+ctimer3_pwm: &ctimer3 {
+	compatible = "nxp,ctimer-pwm";
+	status = "okay";
+	zephyr,deferred-init;
+	prescaler = <0>;
+	pinctrl-0 = <&pinmux_ctimer3_pwm_arduino>;
+	pinctrl-1 = <&pinmux_ctimer3_pwm_arduino>;
+	pinctrl-names = "default", "arduino";
+	#pwm-cells = <3>;
+};
+
 zephyr_mipi_dbi_parallel: &flexio0_lcd {
 	/* DMA channels 0, muxed to FlexIO TX */
 	dmas = <&edma0 0 61>;
@@ -326,7 +376,11 @@ zephyr_mipi_dbi_parallel: &flexio0_lcd {
 
 &sc_timer {
 	pinctrl-0 = <&pinmux_sctimer>;
-	pinctrl-names = "default";
+	/* SCT0_OUT5 (D3) reuses the existing sc_timer instance (SCT0_OUT0
+	 * is unrelated, reserved for onboard use). */
+	pinctrl-1 = <&pinmux_sctimer_arduino>;
+	pinctrl-names = "default", "arduino";
+	zephyr,deferred-init;
 };
 
 /*
