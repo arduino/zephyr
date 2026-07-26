@@ -233,6 +233,18 @@
 		};
 	};
 
+	pinmux_lpadc0_arduino: pinmux_lpadc0_arduino {
+		group0 {
+			pinmux = <ADC0_B14_PIO0_14>,  /* A2 = P0_14 */
+				<ADC0_A14_PIO0_22>,   /* A3 = P0_22 */
+				<ADC0_B15_PIO0_15>,   /* A4 = P0_15 */
+				<ADC0_A15_PIO0_23>;   /* A5 = P0_23 */
+			slew-rate = "fast";
+			drive-strength = "low";
+			input-enable;
+		};
+	};
+
 	pinmux_lpcmp0: pinmux_lpcmp0 {
 		group0 {
 			pinmux = <CMP0_IN0_PIO1_0>;

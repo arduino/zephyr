@@ -8,6 +8,8 @@
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/gpio/dvp-20pin-connector.h>
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/adc/mcux-lpadc.h>
 
 / {
 	aliases{
@@ -244,7 +246,51 @@ nxp_8080_touch_panel_i2c: &flexcomm2_lpi2c2 {
 
 &lpadc0 {
 	pinctrl-0 = <&pinmux_lpadc0>;
-	pinctrl-names = "default";
+	pinctrl-1 = <&pinmux_lpadc0_arduino>;
+	pinctrl-names = "default", "arduino";
+	zephyr,deferred-init;
+	/* Alt1: use VREFH (measured 3.3V on this board) instead of the SoC
+	 * default Alt2 (internal VREF regulator, capped at 2.1V). */
+	voltage-ref = <0>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@2 {
+		reg = <2>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_EXTERNAL0";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <MCUX_LPADC_CH14B>;  /* A2 */
+	};
+	channel@3 {
+		reg = <3>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_EXTERNAL0";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <MCUX_LPADC_CH14A>;  /* A3 */
+	};
+	channel@4 {
+		reg = <4>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_EXTERNAL0";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <MCUX_LPADC_CH15B>;  /* A4 */
+	};
+	channel@5 {
+		reg = <5>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_EXTERNAL0";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <MCUX_LPADC_CH15A>;  /* A5 */
+	};
 };
 
 zephyr_mipi_dbi_parallel: &flexio0_lcd {
