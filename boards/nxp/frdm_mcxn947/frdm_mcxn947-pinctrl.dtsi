@@ -7,12 +7,19 @@
 #include <nxp/mcx/MCXN947VDF-pinctrl.h>
 
 &pinctrl {
+	/*
+	 * FC1_P3 (P0_27, native PCS0 / D10) is deliberately excluded.
+	 * Classic Arduino SPI usage treats SS as a plain digitalWrite()-
+	 * controlled pin managed by the sketch, not something the SPI
+	 * peripheral drives automatically - keeping D10 off of LPSPI1's
+	 * pinctrl claim leaves it fully available as an ordinary GPIO/PWM
+	 * pin at all times, and matches that expectation.
+	 */
 	pinmux_flexcomm1_lpspi: pinmux_flexcomm1_lpspi {
 		group0 {
 			pinmux = <FC1_P0_PIO0_24>,
 				<FC1_P1_PIO0_25>,
-				<FC1_P2_PIO0_26>,
-				<FC1_P3_PIO0_27>;
+				<FC1_P2_PIO0_26>;
 			slew-rate = "fast";
 			drive-strength = "low";
 			input-enable;
