@@ -7,12 +7,19 @@
 #include <nxp/mcx/MCXN947VDF-pinctrl.h>
 
 &pinctrl {
+	/*
+	 * FC1_P3 (P0_27, native PCS0 / D10) is deliberately excluded.
+	 * Classic Arduino SPI usage treats SS as a plain digitalWrite()-
+	 * controlled pin managed by the sketch, not something the SPI
+	 * peripheral drives automatically - keeping D10 off of LPSPI1's
+	 * pinctrl claim leaves it fully available as an ordinary GPIO/PWM
+	 * pin at all times, and matches that expectation.
+	 */
 	pinmux_flexcomm1_lpspi: pinmux_flexcomm1_lpspi {
 		group0 {
 			pinmux = <FC1_P0_PIO0_24>,
 				<FC1_P1_PIO0_25>,
-				<FC1_P2_PIO0_26>,
-				<FC1_P3_PIO0_27>;
+				<FC1_P2_PIO0_26>;
 			slew-rate = "fast";
 			drive-strength = "low";
 			input-enable;
@@ -160,6 +167,44 @@
 		};
 	};
 
+	/*
+	 * Pin order here must match the order ctimer0_pwm entries appear in
+	 * the zephyr,user "pwms" property (state_pin_index_from_spec_index()
+	 * indexes into this group by per-device occurrence order, not by
+	 * channel number).
+	 *
+	 * CT0_MAT3 (D10) is intentionally not included: CTimer requires one
+	 * of its 4 match channels to be reserved internally as the period/
+	 * reset channel, so only 3 of MAT0-3 can be independent PWM pulse
+	 * outputs at once. D10 also carries SPI SS, so MAT0-2 (D9/D13/D12)
+	 * were kept instead.
+	 */
+	pinmux_ctimer0_pwm_arduino: pinmux_ctimer0_pwm_arduino {
+		group0 {
+			pinmux = <CT0_MAT0_PIO0_10>,  /* D9  MAT0 */
+				<CT0_MAT1_PIO0_25>,   /* D13 MAT1 */
+				<CT0_MAT2_PIO0_26>;   /* D12 MAT2 */
+			slew-rate = "fast";
+			drive-strength = "low";
+		};
+	};
+
+	pinmux_ctimer1_pwm_arduino: pinmux_ctimer1_pwm_arduino {
+		group0 {
+			pinmux = <CT1_MAT0_PIO1_2>;  /* D6 */
+			slew-rate = "fast";
+			drive-strength = "low";
+		};
+	};
+
+	pinmux_ctimer3_pwm_arduino: pinmux_ctimer3_pwm_arduino {
+		group0 {
+			pinmux = <CT3_MAT3_PIO1_21>;  /* D5 */
+			slew-rate = "fast";
+			drive-strength = "low";
+		};
+	};
+
 	pinmux_flexpwm1_pwm1: pinmux_flexpwm1_pwm1 {
 		group0 {
 			pinmux = <PWM1_A1_PIO2_4>,
@@ -233,6 +278,18 @@
 		};
 	};
 
+	pinmux_lpadc0_arduino: pinmux_lpadc0_arduino {
+		group0 {
+			pinmux = <ADC0_B14_PIO0_14>,  /* A2 = P0_14 */
+				<ADC0_A14_PIO0_22>,   /* A3 = P0_22 */
+				<ADC0_B15_PIO0_15>,   /* A4 = P0_15 */
+				<ADC0_A15_PIO0_23>;   /* A5 = P0_23 */
+			slew-rate = "fast";
+			drive-strength = "low";
+			input-enable;
+		};
+	};
+
 	pinmux_lpcmp0: pinmux_lpcmp0 {
 		group0 {
 			pinmux = <CMP0_IN0_PIO1_0>;
@@ -275,6 +332,14 @@
 			slew-rate = "fast";
 			drive-strength = "low";
 			input-enable;
+		};
+	};
+
+	pinmux_sctimer_arduino: pinmux_sctimer_arduino {
+		group0 {
+			pinmux = <SCT0_OUT5_PIO1_23>;  /* D3 */
+			slew-rate = "fast";
+			drive-strength = "low";
 		};
 	};
 
