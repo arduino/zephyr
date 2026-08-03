@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config ZEPHYR_PLUGANDTRUST_MODULE
+	bool
+
+menuconfig PLUGANDTRUST
+	bool "plugandtrust support"
+	select I2C
+
+if PLUGANDTRUST
+
+config PLUGANDTRUST_SCP03
+	bool "Enable secure channel for SE05x"
+	select TINYCRYPT
+	select TINYCRYPT_AES
+	select TINYCRYPT_AES_CB
+	select TINYCRYPT_AES_CM
+	select TINYCRYPT_CTR_PR
+	select TINYCRYPT_ECC_DS
+	select TINYCRYPT_SHA256
+	select TINYCRYPT_ECC_DH
+	help
+	  This option enables secure channel for SE05x.
+
+config PLUGANDTRUST_ECKEY
+	bool "Enable EC Key Authentication for SE05x"
+	help
+	  This option enables EC Key Authentication for SE05x.
+
+config PLUGANDTRUST_ECKEY_SCP03
+	bool "Enable eckey + scp03 for SE05x"
+	help
+	  This option enables eckey + scp03 for SE05x.
+
+config PLUGANDTRUST_SM_APDU_MUTEX
+	bool "Enable Mutex at APDU layer"
+	help
+		This option enable mutex at APDU layer.
+
+config PLUGANDTRUST_MBEDTLS_ALT
+	bool "Use ALT implementation for mbedTLS of SE05x"
+	help
+	  This option enables secure channel for SE05x.
+
+config PLUGANDTRUST_APDU_BUFFER_SIZE
+	int "Max APDU buffer size"
+	default 255
+	help
+	  Max APDU buffer size.
+
+module = PLUGANDTRUST
+module-str = plugandtrust
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # PLUGANDTRUST
