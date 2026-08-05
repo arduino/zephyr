@@ -1781,6 +1781,17 @@ static int udc_nrf_init(const struct device *dev)
 	nrfx_power_usbevt_enable();
 	LOG_INF("Initialized");
 
+	if (nrfx_power_usbstatus_get() != NRFX_POWER_USB_STATE_DISCONNECTED) {
+		/* USBDETECTED event is be generated on cable attachment and
+		 * when cable is already attached during reset, but not when
+		 * the peripheral is re-enabled.
+		 * When USB-enabled bootloader is used, target application
+		 * will not receive this event and it needs to be generated
+		 * again here.
+		 */
+		udc_nrf_power_handler(NRFX_POWER_USB_EVT_DETECTED);
+	}
+
 	return 0;
 }
 
