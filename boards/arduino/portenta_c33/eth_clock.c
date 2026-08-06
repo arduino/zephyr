@@ -11,7 +11,8 @@
 
 LOG_MODULE_REGISTER(eth_clock, CONFIG_CLOCK_CONTROL_LOG_LEVEL);
 
-#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(eth))
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(eth)) &&                                                  \
+	!DT_PROP(DT_NODELABEL(eth), zephyr_deferred_init)
 static int eth_clock_enable(void)
 {
 	int ret;
