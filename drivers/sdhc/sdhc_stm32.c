@@ -467,6 +467,11 @@ static int sdhc_stm32_request(const struct device *dev, struct sdhc_command *cmd
 
 	pm_policy_state_lock_put(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
 	(void)pm_device_runtime_put(dev);
+
+	if (CONFIG_SDHC_STM32_REQUEST_DELAY_US > 0) {
+		k_busy_wait(CONFIG_SDHC_STM32_REQUEST_DELAY_US);
+	}
+
 	k_mutex_unlock(&dev_data->bus_mutex);
 
 	return res;
