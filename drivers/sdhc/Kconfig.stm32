@@ -28,4 +28,12 @@ config SDHC_STM32_DMA_MODE
 	help
 	  Enable DMA for data transfers. Disable to use polling mode.
 
+config SDHC_STM32_REQUEST_DELAY_US
+	int "Settle delay after each SDIO request (microseconds)"
+	default 0
+	help
+	  Deterministic busy-wait inserted after every SDIO command so the
+	  peripheral has time to return to the READY state before the next
+	  request. 0 disables.
+
 endif # SDHC_STM32_SDMMC
