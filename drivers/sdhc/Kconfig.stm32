@@ -23,4 +23,12 @@ config SDHC_STM32_POLLING_SUPPORT
 	help
 	  Enables support for SDHC Polling mode on STM32 microcontrollers.
 
+config SDHC_STM32_REQUEST_DELAY_US
+	int "Settle delay after each SDIO request (microseconds)"
+	default 0
+	help
+	  Deterministic busy-wait inserted after every SDIO command so the
+	  peripheral has time to return to the READY state before the next
+	  request. 0 disables.
+
 endif # SDHC_STM32_SDIO
