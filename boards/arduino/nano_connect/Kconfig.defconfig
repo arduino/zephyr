@@ -13,4 +13,11 @@ endif # I2C_DW
 config USB_SELF_POWERED
 	default n
 
+# The image is always linked at flash base + 0x100, so it must carry the RP2040
+# second stage bootloader. The SoC default cannot detect this: it tests
+# FLASH_LOAD_OFFSET, which is not defined for boards whose code partition uses
+# the "zephyr,mapped-partition" compatible, as this one does.
+config RP2_REQUIRES_SECOND_STAGE_BOOT
+	default y
+
 endif # BOARD_ARDUINO_NANO_CONNECT
