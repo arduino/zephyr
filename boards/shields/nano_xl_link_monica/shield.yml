@@ -1,0 +1,6 @@
+shields:
+  - name: nano_xl_link_monica
+    full_name: Arduino Nano XL Link Monica
+    vendor: arduino
+    supported_features:
+      - wifi

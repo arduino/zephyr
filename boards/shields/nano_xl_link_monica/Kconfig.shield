@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Arduino SA
+# SPDX-License-Identifier: Apache-2.0
+
+config SHIELD_NANO_XL_LINK_MONICA
+	def_bool $(shields_list_contains,nano_xl_link_monica)

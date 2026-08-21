@@ -1,0 +1,11 @@
+/*
+ * Copyright (c) 2026 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * This shield's ESP8266 module is wired to a fixed, board-specific UART
+ * (sercom1 on the Monica carrier), so there is nothing generic to add here.
+ * See boards/<board>.overlay for the actual wiring.
+ */
