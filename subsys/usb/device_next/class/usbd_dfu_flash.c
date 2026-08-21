@@ -95,7 +95,7 @@ static int dfu_flash_write(void *const priv,
 	int ret;
 
 	if (block == 0) {
-		if (flash_img_init(&data->fi_ctx)) {
+		if (flash_img_init_id(&data->fi_ctx, data->id)) {
 			return -EINVAL;
 		}
 
@@ -108,6 +108,8 @@ static int dfu_flash_write(void *const priv,
 		}
 	} else {
 		if (data->last_block + 1U != block) {
+			LOG_ERR("Block sequence error: expected %u, got %u (downloaded %u)",
+				data->last_block + 1U, block, data->downloaded);
 			return -EINVAL;
 		}
 

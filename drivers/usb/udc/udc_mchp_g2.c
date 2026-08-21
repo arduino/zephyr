@@ -40,6 +40,8 @@ LOG_MODULE_REGISTER(udc_mchp_g2, CONFIG_UDC_DRIVER_LOG_LEVEL);
 /* EP0 constants */
 #define MCHP_G2_EP0_MPS           64U /* Control EP max packet size */
 #define MCHP_G2_SETUP_PACKET_SIZE 8U  /* SETUP packet length */
+/* Control OUT data can span multiple EP0 packets (e.g. DFU wLength=512). */
+#define MCHP_G2_EP0_CTRL_STAGING_SIZE 1024U
 
 /* SETUP packet field offsets: bmRequestType in word0[7:0], wLength in word1[31:16]. */
 #define MCHP_G2_SETUP_BMREQTYPE_MASK 0xFFU
@@ -121,7 +123,7 @@ struct udc_mchp_g2_data {
 	atomic_t bulk_rx_nak;     /* RxPktRdy held; data in sw buf */
 	atomic_t bulk_rx_pending; /* RxPktRdy held; data in HW FIFO */
 
-	uint8_t ep0_rx_staging[MCHP_G2_EP0_MPS];
+	uint8_t ep0_rx_staging[MCHP_G2_EP0_CTRL_STAGING_SIZE];
 	uint16_t ep0_rx_staging_len;
 	uint16_t ep0_ctrl_write_len;
 	uint16_t ep0_ctrl_bytes_received;
@@ -289,32 +291,38 @@ static void mchp_g2_handle_ep0_rx_done(const struct device *dev)
 		out_buf = ep0_out ? udc_buf_peek(ep0_out) : NULL;
 	}
 
-	/* Race fallback: data buffer still not queued; re-trigger SETUP. */
+	/*
+	 * The data stage is ACKed with DataEnd in the ISR, so the payload is
+	 * already staged even when the USB stack has not yet enqueued a buffer
+	 * for it. That happens whenever the class handler is slow to return,
+	 * e.g. a DFU download blocking on a flash page erase. The host has
+	 * already been told the transfer succeeded, so dropping the payload
+	 * here silently loses a block. Instead put the SETUP buffer back, keep
+	 * the staging buffer intact and re-arm ep0_rx_done;
+	 * udc_mchp_g2_ep_enqueue() posts EVT_XFER once the data buffer arrives
+	 * and the transfer is completed on that pass.
+	 */
 	if ((out_buf == NULL) || (udc_get_buf_info(out_buf)->setup != 0U)) {
 		if (setup_hold != NULL) {
-			memset(setup_hold->data, 0, MCHP_G2_SETUP_PACKET_SIZE);
-			setup_hold->len = 0;
 			udc_buf_put(ep0_out, setup_hold);
-			setup_hold = NULL;
 		}
-		udc_setup_received(dev, priv->ep0_ctrl_write_setup);
-		out_buf = ep0_out ? udc_buf_peek(ep0_out) : NULL;
+
+		atomic_set(&priv->ep0_rx_done, 1);
+		return;
 	}
 
 	/* Copy staged data into the data buffer and submit. */
-	if (out_buf != NULL && udc_get_buf_info(out_buf)->setup == 0U) {
-		out_buf = udc_buf_get(ep0_out);
-		len = MIN((size_t)priv->ep0_rx_staging_len, net_buf_tailroom(out_buf));
+	out_buf = udc_buf_get(ep0_out);
+	len = MIN((size_t)priv->ep0_rx_staging_len, net_buf_tailroom(out_buf));
 
-		memcpy(net_buf_add(out_buf, len), priv->ep0_rx_staging, len);
-		udc_submit_ep_event(dev, out_buf, 0);
+	memcpy(net_buf_add(out_buf, len), priv->ep0_rx_staging, len);
+	udc_submit_ep_event(dev, out_buf, 0);
 
-		/* Drain status ZLP. */
-		status = udc_buf_peek(ep_in);
+	/* Drain status ZLP. */
+	status = udc_buf_peek(ep_in);
 
-		if (status != NULL && udc_get_buf_info(status)->status != 0U) {
-			udc_submit_ep_event(dev, udc_buf_get(ep_in), 0);
-		}
+	if (status != NULL && udc_get_buf_info(status)->status != 0U) {
+		udc_submit_ep_event(dev, udc_buf_get(ep_in), 0);
 	}
 
 	priv->ep0_rx_staging_len = 0U;
@@ -334,9 +342,17 @@ static void mchp_g2_handle_ep0_tx(const struct device *dev, struct net_buf *buf)
 	usbhs_registers_t *regs = (usbhs_registers_t *)cfg->base;
 	uint16_t mps = udc_mps_ep_size(udc_get_ep_cfg(dev, USB_CONTROL_EP_IN));
 	volatile uint8_t *fifo = (volatile uint8_t *)&regs->ENDPOINT0.USBHS_FIFOX[0];
+	struct udc_buf_info *bi = udc_get_buf_info(buf);
 	size_t chunk;
 	size_t i;
 	uint8_t csr0;
+
+	/* EP0 FIFO is single buffered: never write while a packet is in flight. */
+	csr0 = regs->ENDPOINT0.USBHS_CSR0L;
+	if ((csr0 & USBHS_ENDPOINT0_CSR0L_TXPKTRDY_Msk) != 0U) {
+		LOG_WRN("handle_ep0_tx: TxPktRdy already set (CSR0L=0x%02x)  skipped", csr0);
+		return;
+	}
 
 	/* Write next chunk */
 	chunk = MIN(buf->len, (size_t)mps);
@@ -348,9 +364,12 @@ static void mchp_g2_handle_ep0_tx(const struct device *dev, struct net_buf *buf)
 
 	csr0 = USBHS_ENDPOINT0_CSR0L_TXPKTRDY_Msk;
 
-	/* Set DataEnd on the last packet. */
-	if (buf->len == 0 && udc_get_buf_info(buf)->zlp == 0U) {
+	/* Set DataEnd on the last packet, as mchp_g2_enqueue_ep0_in() does. */
+	if (chunk < mps || (buf->len == 0U && bi->zlp == 0U)) {
 		csr0 |= USBHS_ENDPOINT0_CSR0L_PERIPHERAL_EP0_DATAEND_Msk;
+	} else if (buf->len == 0U && bi->zlp != 0U) {
+		csr0 |= USBHS_ENDPOINT0_CSR0L_PERIPHERAL_EP0_DATAEND_Msk;
+		bi->zlp = 0U;
 	}
 
 	priv->ep0_state = EP0_STATE_TX;
@@ -448,6 +467,22 @@ static void mchp_g2_thread_handler(void *arg1, void *arg2, void *arg3)
 			}
 		}
 
+		/*
+		 * Handle SETUP before XFER: when the class handler is slow the
+		 * whole control write (SETUP + data + status) can complete in
+		 * the ISR before this thread runs, leaving both events pending.
+		 * The data stage cannot be delivered until the SETUP has been
+		 * submitted to the stack, so submit it first.
+		 */
+		if ((events & MCHP_G2_EVT_SETUP) != 0U) {
+			k_event_clear(&priv->events, MCHP_G2_EVT_SETUP);
+			LOG_DBG("SETUP packet received: %02x %02x %02x %02x "
+				"%02x %02x %02x %02x",
+				priv->setup[0], priv->setup[1], priv->setup[2], priv->setup[3],
+				priv->setup[4], priv->setup[5], priv->setup[6], priv->setup[7]);
+			udc_setup_received(dev, priv->setup);
+		}
+
 		if ((events & MCHP_G2_EVT_XFER) != 0U) {
 			k_event_clear(&priv->events, MCHP_G2_EVT_XFER);
 			ep_in = udc_get_ep_cfg(dev, USB_CONTROL_EP_IN);
@@ -463,15 +498,6 @@ static void mchp_g2_thread_handler(void *arg1, void *arg2, void *arg3)
 			} else if (buf != NULL) {
 				udc_submit_ep_event(dev, udc_buf_get(ep_in), 0);
 			}
-		}
-
-		if ((events & MCHP_G2_EVT_SETUP) != 0U) {
-			k_event_clear(&priv->events, MCHP_G2_EVT_SETUP);
-			LOG_DBG("SETUP packet received: %02x %02x %02x %02x "
-				"%02x %02x %02x %02x",
-				priv->setup[0], priv->setup[1], priv->setup[2], priv->setup[3],
-				priv->setup[4], priv->setup[5], priv->setup[6], priv->setup[7]);
-			udc_setup_received(dev, priv->setup);
 		}
 	}
 }
@@ -679,9 +705,23 @@ static void mchp_g2_ep0_state_idle(usbhs_registers_t *regs, struct udc_mchp_g2_d
 }
 
 /* STATUS_IN: Status ZLP ACKed by host. Guard on INTRTX[0] to ignore spurious events. */
-static void mchp_g2_ep0_state_status_in(struct udc_mchp_g2_data *priv,
-					uint16_t endpointTXInterrupts)
+static void mchp_g2_ep0_state_status_in(usbhs_registers_t *regs, struct udc_mchp_g2_data *priv,
+					uint8_t csr0L, uint16_t endpointTXInterrupts)
 {
+	if ((csr0L & USBHS_ENDPOINT0_CSR0L_RXPKTRDY_Msk) != 0U) {
+		/*
+		 * A new SETUP packet is already waiting in the FIFO. The status
+		 * ZLP completion and this SETUP have coalesced into a single
+		 * interrupt, so no further EP0 interrupt will be raised for the
+		 * SETUP. Returning here would leave RxPktRdy asserted and wedge
+		 * EP0 permanently. Drop back to IDLE and consume the SETUP now.
+		 */
+		priv->ep0_state = EP0_STATE_IDLE;
+		mchp_g2_ep0_state_idle(regs, priv, csr0L);
+		k_event_post(&priv->events, MCHP_G2_EVT_XFER);
+		return;
+	}
+
 	if ((endpointTXInterrupts & USBHS_INTRTX_EP0TX_Msk) == 0U) {
 		return; /* Not a real EP0 event. */
 	}
@@ -916,7 +956,7 @@ static void mchp_g2_handle_ep0_state(const struct device *dev, usbhs_registers_t
 		mchp_g2_ep0_state_idle(regs, priv, csr0L);
 		break;
 	case EP0_STATE_STATUS_IN:
-		mchp_g2_ep0_state_status_in(priv, endpointTXInterrupts);
+		mchp_g2_ep0_state_status_in(regs, priv, csr0L, endpointTXInterrupts);
 		break;
 	case EP0_STATE_TX:
 		mchp_g2_ep0_state_tx(priv, csr0L, endpointTXInterrupts);
@@ -1159,6 +1199,7 @@ static int udc_mchp_g2_ep_enqueue(const struct device *dev, struct udc_ep_config
 				  struct net_buf *buf)
 {
 	const struct udc_mchp_g2_config *config = dev->config;
+	struct udc_mchp_g2_data *priv = udc_get_private(dev);
 	usbhs_registers_t *regs = (usbhs_registers_t *)(config->base);
 
 	LOG_DBG("%p enqueue %p to ep 0x%02x, len=%u", dev, buf, cfg->addr, buf->len);
@@ -1178,6 +1219,18 @@ static int udc_mchp_g2_ep_enqueue(const struct device *dev, struct udc_ep_config
 
 	if (USB_EP_DIR_IS_IN(cfg->addr)) {
 		return mchp_g2_enqueue_ep0_in(dev, regs, cfg, buf);
+	}
+
+	/*
+	 * EP0 OUT data stage buffer. The payload may already have been staged
+	 * by the ISR while this buffer was still being allocated, so wake the
+	 * driver thread to complete the transfer instead of waiting for another
+	 * USB event that may never come. Only when the ISR actually staged
+	 * something: this path is also the SETUP re-arm, and waking the thread
+	 * there resumes an EP0 IN that is still in flight.
+	 */
+	if (atomic_get(&priv->ep0_rx_done) != 0) {
+		k_event_post(&priv->events, MCHP_G2_EVT_XFER);
 	}
 
 	return 0;
