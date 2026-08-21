@@ -1,0 +1,17 @@
+identifier: arduino_nano_xl_link
+name: Arduino Nano XL Link
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 256
+flash: 1024
+supported:
+  - clock_control
+  - gpio
+  - pinctrl
+  - uart
+  - usbd
+  - eth
+vendor: arduino
