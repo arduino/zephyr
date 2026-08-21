@@ -6,6 +6,7 @@
 
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
+#include <zephyr/devicetree/nvmem.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/net/mii.h>
 #include <zephyr/net/ethernet.h>
@@ -17,6 +18,12 @@
 LOG_MODULE_REGISTER(eth_mchp_gmac_g1, CONFIG_ETHERNET_LOG_LEVEL);
 
 #define DT_DRV_COMPAT microchip_gmac_g1_eth
+
+#if DT_INST_NVMEM_CELLS_HAS_NAME(0, mac_address)
+#define ETH_MCHP_MAC_CELL_NODE DT_NVMEM_CELL_BY_NAME(DT_DRV_INST(0), mac_address)
+#define ETH_MCHP_MAC_CELL_MTD_NODE DT_MTD_FROM_NVMEM_CELL(ETH_MCHP_MAC_CELL_NODE)
+#define ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH DT_NODE_HAS_COMPAT(ETH_MCHP_MAC_CELL_MTD_NODE, soc_nv_flash)
+#endif
 
 #define GMAC_PHY_CONN_TYPE_MII  0
 #define GMAC_PHY_CONN_TYPE_RMII 1
@@ -989,6 +996,43 @@ static void eth_mchp_iface_init(struct net_if *iface)
 		return;
 	}
 
+#if defined(ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH) && ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH
+	if (result == -ENODATA) {
+		uintptr_t mac_src = DT_REG_ADDR(ETH_MCHP_MAC_CELL_MTD_NODE) +
+			DT_REG_ADDR(ETH_MCHP_MAC_CELL_NODE);
+		uint32_t fccfg72 = *(const uint32_t *)mac_src;
+		uint32_t fccfg73 = *(const uint32_t *)(mac_src + sizeof(uint32_t));
+		struct net_eth_addr mac = {0};
+
+		/*
+		 * Datasheet:
+		 *   FCCFG72 User SW => ETH FMAC[31:0]
+		 *   FCCFG73 User SW => ETH FMAC[47:32] in bits [15:0]
+		 * Convert that 48-bit value into the conventional MAC octet order.
+		 */
+		mac.addr[0] = (uint8_t)((fccfg73 >> 8) & 0xffU);
+		mac.addr[1] = (uint8_t)(fccfg73 & 0xffU);
+		mac.addr[2] = (uint8_t)((fccfg72 >> 24) & 0xffU);
+		mac.addr[3] = (uint8_t)((fccfg72 >> 16) & 0xffU);
+		mac.addr[4] = (uint8_t)((fccfg72 >> 8) & 0xffU);
+		mac.addr[5] = (uint8_t)(fccfg72 & 0xffU);
+
+		LOG_INF("soc-nv-flash MAC source @0x%08x", (uint32_t)mac_src);
+		LOG_INF("soc-nv-flash FCCFG72=0x%08x FCCFG73=0x%08x", fccfg72, fccfg73);
+		LOG_INF("soc-nv-flash MAC decoded %02x:%02x:%02x:%02x:%02x:%02x", mac.addr[0],
+			mac.addr[1], mac.addr[2], mac.addr[3], mac.addr[4], mac.addr[5]);
+
+		if (net_eth_is_addr_valid(&mac)) {
+			memcpy(mac_addr, mac.addr, NET_ETH_ADDR_LEN);
+			result = 0;
+			LOG_INF("Loaded MAC from soc-nv-flash nvmem cell");
+		} else {
+			LOG_WRN("Invalid MAC in soc-nv-flash nvmem cell (all-zero=%d multicast=%d)",
+				net_eth_is_addr_all_zeroes(&mac), net_eth_is_addr_multicast(&mac));
+		}
+	}
+#endif
+
 	if (result != -ENODATA) {
 		gmac_mac_addr_set(gmac_regs, 0, mac_addr);
 
@@ -1157,7 +1201,15 @@ static const struct gmac_dev_config eth_config = {
 	.active_queues = DT_INST_PROP(0, num_queues),
 	.pinctrl_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(0),
 	.config_func = eth_irq_config,
+
+#if defined(ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH) && ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH
+	.mcfg = {
+		.type = NET_ETH_MAC_DEFAULT,
+	},
+#else
 	.mcfg = NET_ETH_MAC_DT_INST_CONFIG_INIT(0),
+#endif
+
 	.mclk_apb_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, mclk_apb, subsystem),
 	.mclk_ahb_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, mclk_ahb, subsystem),
 #ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC

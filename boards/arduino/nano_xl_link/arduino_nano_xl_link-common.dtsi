@@ -93,6 +93,23 @@
 					};
 				};
 			};
+
+			flash_otp: flash_otp@a007000 {
+				compatible = "soc-nv-flash";
+				reg = <0xa007000 4096>;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					mac_address: mac_address@1a0 {
+						reg = <0x1a0 0x6>;
+						#nvmem-cell-cells = <0>;
+						read-only;
+					};
+				};
+			};
 };
 
 &cpu0 {
@@ -397,7 +414,8 @@ zephyr_udc0: &hsusb0 {
 &gmac {
 	pinctrl-0 = <&gmac_rmii>;
 	pinctrl-names = "default";
-	zephyr,random-mac-address;
+	nvmem-cells = <&mac_address>;
+	nvmem-cell-names = "mac-address";
 	phy-handle = <&eth_phy>;
 	status = "okay";
 };
