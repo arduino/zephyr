@@ -108,6 +108,8 @@ static int dfu_flash_write(void *const priv,
 		}
 	} else {
 		if (data->last_block + 1U != block) {
+			LOG_ERR("Block sequence error: expected %u, got %u (downloaded %u)",
+				data->last_block + 1U, block, data->downloaded);
 			return -EINVAL;
 		}
 
