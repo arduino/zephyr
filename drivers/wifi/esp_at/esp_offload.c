@@ -97,12 +97,36 @@ static int _sock_connect(struct esp_data *dev, struct esp_socket *sock)
 				mode = 0;
 			}
 
-			snprintk(connect_msg, sizeof(connect_msg),
-				 "AT+CIPSTART=%d,\"UDP\",\"%s\",%d,%d,%d,\"%s\"",
-				 sock->link_id, dst_addr_str,
-				 net_ntohs(net_sin(&dst)->sin_port),
-				 net_ntohs(net_sin(&src)->sin_port),
-				 mode, src_addr_str);
+			/*
+			 * <local IP> is optional, and must be omitted when the
+			 * socket was bound to INADDR_ANY: passing "0.0.0.0"
+			 * there makes the module answer ERROR, the link is
+			 * never created, and the socket stays IN_USE without
+			 * ESP_SOCK_CONNECTED. Nothing surfaces to the caller -
+			 * recvfrom simply blocks forever on a port the module
+			 * is not listening on, and the peer gets ICMP port
+			 * unreachable.
+			 *
+			 * Every server socket binds to INADDR_ANY, so this hit
+			 * anything trying to receive on a fixed port; found
+			 * with mcumgr's SMP/UDP transport, which binds
+			 * INADDR_ANY:1337.
+			 */
+			if (net_sin(&src)->sin_addr.s_addr == 0) {
+				snprintk(connect_msg, sizeof(connect_msg),
+					 "AT+CIPSTART=%d,\"UDP\",\"%s\",%d,%d,%d",
+					 sock->link_id, dst_addr_str,
+					 net_ntohs(net_sin(&dst)->sin_port),
+					 net_ntohs(net_sin(&src)->sin_port),
+					 mode);
+			} else {
+				snprintk(connect_msg, sizeof(connect_msg),
+					 "AT+CIPSTART=%d,\"UDP\",\"%s\",%d,%d,%d,\"%s\"",
+					 sock->link_id, dst_addr_str,
+					 net_ntohs(net_sin(&dst)->sin_port),
+					 net_ntohs(net_sin(&src)->sin_port),
+					 mode, src_addr_str);
+			}
 		} else {
 			snprintk(connect_msg, sizeof(connect_msg),
 				 "AT+CIPSTART=%d,\"UDP\",\"%s\",%d",
@@ -292,13 +316,27 @@ static int _sock_send(struct esp_socket *sock, struct net_pkt *pkt)
 		dst = sock->dst;
 		k_mutex_unlock(&sock->lock);
 
-		net_addr_ntop(dst.sa_family,
-			      &net_sin(&dst)->sin_addr,
-			      addr_str, sizeof(addr_str));
-		snprintk(cmd_buf, sizeof(cmd_buf),
-			 "AT+CIPSEND=%d,%d,\"%s\",%d",
-			 sock->link_id, pkt_len, addr_str,
-			 net_ntohs(net_sin(&dst)->sin_port));
+		/*
+		 * When the destination is INADDR_ANY (e.g. recvfrom() on
+		 * AT 1.7 without CIPDINFO returned a zeroed source address),
+		 * omit the address fields and let the module's UDP mode-2
+		 * routing send to the last received peer.  Passing
+		 * "0.0.0.0",0 explicitly would fail or go nowhere.
+		 */
+		if (net_sin(&dst)->sin_addr.s_addr == 0 ||
+		    net_sin(&dst)->sin_port == 0) {
+			snprintk(cmd_buf, sizeof(cmd_buf),
+				 "AT+CIPSEND=%d,%d",
+				 sock->link_id, pkt_len);
+		} else {
+			net_addr_ntop(dst.sa_family,
+				      &net_sin(&dst)->sin_addr,
+				      addr_str, sizeof(addr_str));
+			snprintk(cmd_buf, sizeof(cmd_buf),
+				 "AT+CIPSEND=%d,%d,\"%s\",%d",
+				 sock->link_id, pkt_len, addr_str,
+				 net_ntohs(net_sin(&dst)->sin_port));
+		}
 	}
 
 	k_sem_take(&dev->cmd_handler_data.sem_tx_lock, K_FOREVER);
