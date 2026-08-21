@@ -282,8 +282,7 @@ static void config_can_mchp_##inst##_irq(void)					\
 						&can_mchp_cbs_##inst);
 
 #define CAN_MCHP_DATA_INST(inst)						\
-	static struct can_mcan_data can_mcan_data_##inst =			\
-		CAN_MCAN_DATA_INITIALIZER(NULL);
+	CAN_MCAN_DATA_DEFINE(can_mcan_data_##inst, NULL);
 
 #define CAN_MCHP_DEVICE_INST(inst)						\
 	CAN_DEVICE_DT_INST_DEFINE(inst, can_mchp_init, NULL,			\

@@ -1445,8 +1445,11 @@ static void uart_mchp_irq_tx_disable(const struct device *dev)
 	sercom_registers_t *regs = cfg->regs;
 	bool is_clock_external = cfg->is_clock_external;
 
+	/* Keep the TX complete interrupt enabled so the HW can signal when the
+	 * final byte has actually left the shift register. Disabling both TX ready
+	 * and TX complete here can cause flush() loops to wait forever.
+	 */
 	uart_enable_tx_ready_interrupt(regs, is_clock_external, false);
-	uart_enable_tx_complete_interrupt(regs, is_clock_external, false);
 }
 
 /**
@@ -1477,10 +1480,14 @@ static int uart_mchp_irq_tx_ready(const struct device *dev)
  */
 static int uart_mchp_irq_tx_complete(const struct device *dev)
 {
+	const uart_mchp_dev_cfg_t *const cfg = dev->config;
 	uart_mchp_dev_data_t *const dev_data = dev->data;
 	int retval = 0;
 
 	if (dev_data->is_tx_completed_cache == true) {
+		retval = 1;
+	} else if (uart_is_tx_complete(cfg->regs, cfg->is_clock_external) == true) {
+		dev_data->is_tx_completed_cache = true;
 		retval = 1;
 	}
 
