@@ -361,6 +361,24 @@ static int flash_mchp_read(const struct device *dev, off_t offset, void *data_bu
 	return 0;
 }
 
+/*
+ * FCW alignment traps (neither is documented in DS60001795):
+ *
+ * 1. SRCADDR alignment: ROW_PROGRAM_OPERATION reads its source from SRAM via
+ *    SRCADDR, but the hardware ignores SRCADDR[4:0] and silently rounds the
+ *    source down to a 32-byte boundary, so a misaligned caller buffer is
+ *    programmed shifted, with no error. Rows are therefore staged through a
+ *    bounce buffer aligned to the row size.
+ *
+ * 2. FCW_ADDR alignment: QDW and ROW programming need a naturally aligned
+ *    destination (32 B / 1 KB). A misaligned one silently corrupts data, so
+ *    the write loop only picks QDW/ROW on aligned offsets and falls back to
+ *    DW for the leading unaligned part.
+ */
+#define FLASH_MCHP_G3_ROW_BUF_SIZE 1024U
+
+static uint8_t __aligned(FLASH_MCHP_G3_ROW_BUF_SIZE) row_bounce_buf[FLASH_MCHP_G3_ROW_BUF_SIZE];
+
 static int flash_mchp_write(const struct device *dev, off_t offset, const void *data_buff,
 			    size_t no_of_bytes)
 {
@@ -391,8 +409,10 @@ static int flash_mchp_write(const struct device *dev, off_t offset, const void *
 		fcw_ready_wait(regs);
 		LOG_DBG("Number of bytes yet to be written %u", no_of_bytes);
 
-		if (no_of_bytes >= config->write_block_size_row) {
-			regs->FCW_SRCADDR = (uint32_t)src_data_buff_read_ptr;
+		if ((no_of_bytes >= config->write_block_size_row) &&
+		    IS_MCHP_FLASH_G3_ALIGNED(offset, config->write_block_size_row)) {
+			memcpy(row_bounce_buf, src_data_buff_read_ptr, config->write_block_size_row);
+			regs->FCW_SRCADDR = (uint32_t)row_bounce_buf;
 			LOG_DBG("Writing row-block at address %#08x",
 				(uint32_t)(config->base_addr + offset));
 			nvm_error = exec_flash_operation(regs, data, (config->base_addr + offset),
@@ -405,7 +425,8 @@ static int flash_mchp_write(const struct device *dev, off_t offset, const void *
 			no_of_bytes -= config->write_block_size_row;
 			offset += config->write_block_size_row;
 			src_data_buff_read_ptr += config->write_block_size_row;
-		} else if (no_of_bytes >= config->write_block_size_qdw) {
+		} else if ((no_of_bytes >= config->write_block_size_qdw) &&
+			   IS_MCHP_FLASH_G3_ALIGNED(offset, config->write_block_size_qdw)) {
 			for (uint32_t i = 0; i < (config->write_block_size_qdw / sizeof(uint32_t));
 			     i++) {
 				memcpy(&word, src_data_buff_read_ptr + (i * sizeof(uint32_t)),
@@ -739,6 +760,9 @@ static DEVICE_API(flash, flash_mchp_g3_driver_api) = {
 		.unimplemented_region_count = SOC_NV_FLASH_UNIMPLEMENTED_REGION_COUNT(n),          \
 		.unimplemented_regions = dt_unimplemented_regions##n,                              \
 		FLASH_MCHP_G3_CONFIG_PAGE_LAYOUT(n)};                                              \
+                                                                                                   \
+	BUILD_ASSERT(SOC_NV_FLASH_WRITE_BLOCK_SIZE_ROW(n) <= FLASH_MCHP_G3_ROW_BUF_SIZE,           \
+		     "row size exceeds the row bounce buffer");                                 \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(n, nvmctrl_init, NULL, &nvmctrl_g3_data##n, &nvmctrl_g3_config##n,   \
 			      POST_KERNEL, CONFIG_FLASH_INIT_PRIORITY, &flash_mchp_g3_driver_api);
