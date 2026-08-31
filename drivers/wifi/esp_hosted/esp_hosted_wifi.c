@@ -640,6 +640,8 @@ static int esp_hosted_dev_init(const struct device *dev)
 		data->fw_version.minor = fw->minor;
 		data->fw_version.rev_patch1 = fw->rev_patch1;
 		data->fw_version.rev_patch2 = fw->rev_patch2;
+		snprintk(data->fw_version.str, sizeof(data->fw_version.str), "%u.%u.%u.%u.%u",
+			 fw->major1, fw->major2, fw->minor, fw->rev_patch1, fw->rev_patch2);
 	}
 
 	LOG_INF("firmware version: v%u.%u.%u.%u.%u", fw->major1, fw->major2, fw->minor,
@@ -657,6 +659,20 @@ static int esp_hosted_dev_init(const struct device *dev)
 	return 0;
 }
 
+static int esp_hosted_get_version(const struct device *dev, struct wifi_version *params)
+{
+	esp_hosted_data_t *data = dev->data;
+
+	if (params == NULL) {
+		return -EINVAL;
+	}
+
+	params->drv_version = "unknown";
+	params->fw_version = data->fw_version.str;
+
+	return 0;
+}
+
 static const struct wifi_mgmt_ops esp_hosted_mgmt = {
 	.scan = esp_hosted_scan,
 	.connect = esp_hosted_connect,
@@ -667,6 +683,7 @@ static const struct wifi_mgmt_ops esp_hosted_mgmt = {
 	.get_stats = esp_hosted_stats,
 #endif
 	.iface_status = esp_hosted_status,
+	.get_version = esp_hosted_get_version,
 };
 
 static const struct net_wifi_mgmt_offload esp_hosted_api = {
