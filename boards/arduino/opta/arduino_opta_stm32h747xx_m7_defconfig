@@ -21,3 +21,7 @@ CONFIG_USE_DT_CODE_PARTITION=y
 CONFIG_STM32H7_BOOT_M4_AT_INIT=n
 
 # On M7, USB CDC ACM is used as the UART console backend by default
+
+# Use STM32 SDHC driver for SDIO
+# (disables the legacy SDMMC disk driver)
+CONFIG_SDMMC_STM32=n
