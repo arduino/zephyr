@@ -42,6 +42,18 @@ LOG_MODULE_REGISTER(can_mchp_mcan, CONFIG_CAN_LOG_LEVEL);
 #define MRAM_SIZE			DT_REG_SIZE(SRAM_NODE)
 #define MRAM_ADDR_MAX		(MRAM_BASE_ADDR + MRAM_SIZE - 1)
 
+/*
+ * Bosch M_CAN reserves register offset 0x008 ("CUST") for SoC-specific use.
+ * On this SoC it is CAN_MRCFG, whose OFFSET field (bits 23:16) supplies the
+ * upper bits of the Message RAM base address. The generic Bosch registers
+ * programmed by can_mcan_configure_mram() (SIDFC/XIDFC/RXF0C/RXF1C/RXBC/
+ * TXEFC/TXBC) only carry bits 15:2, i.e. a 64 KB window - any buffer placed
+ * further than that from MRAM_BASE_ADDR needs this register set as well, or
+ * the controller silently reads/writes the wrong 64 KB page of SRAM.
+ */
+#define CAN_MCHP_MRCFG		0x008
+#define CAN_MCHP_MRCFG_OFFSET	GENMASK(23, 16)
+
 struct can_mchp_config {
 	mm_reg_t base;
 	mem_addr_t mram;
@@ -166,6 +178,8 @@ static int can_mchp_init(const struct device *dev)
 {
 	const struct can_mcan_config *mcan_cfg = dev->config;
 	const struct can_mchp_config *cfg = mcan_cfg->custom;
+	uint32_t mram_off;
+	uint32_t mrcfg;
 	int ret;
 
 	/* Validate MRAM address is in the addressable range */
@@ -174,6 +188,8 @@ static int can_mchp_init(const struct device *dev)
 				(unsigned long)cfg->mram, MRAM_BASE_ADDR, MRAM_ADDR_MAX);
 		return -EINVAL;
 	}
+
+	mram_off = (uint32_t)(cfg->mram - MRAM_BASE_ADDR);
 
 	/* Enable clocks */
 	ret = can_mchp_clock_enable(cfg);
@@ -195,6 +211,24 @@ static int can_mchp_init(const struct device *dev)
 	if (ret != 0) {
 		LOG_ERR("Failed to configure message RAM: %d", ret);
 		return ret;
+	}
+
+	/*
+	 * Set the Message RAM base page (bits 23:16). The standard Bosch
+	 * offsets programmed above only cover 64 KB relative to this page,
+	 * so without it the controller addresses SRAM 64 KB * page too low
+	 * relative to where the buffer actually is.
+	 */
+	ret = can_mchp_write_reg(dev, CAN_MCHP_MRCFG,
+				  FIELD_PREP(CAN_MCHP_MRCFG_OFFSET, mram_off >> 16));
+	if (ret != 0) {
+		LOG_ERR("Failed to set Message RAM base page: %d", ret);
+		return ret;
+	}
+
+	ret = can_mchp_read_reg(dev, CAN_MCHP_MRCFG, &mrcfg);
+	if (ret == 0) {
+		LOG_DBG("CAN_MRCFG readback = 0x%08x", mrcfg);
 	}
 
 	/* Initialize MCAN core */
