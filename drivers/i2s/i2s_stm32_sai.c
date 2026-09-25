@@ -18,6 +18,9 @@
 #include <zephyr/cache.h>
 
 #include <stm32_ll_dma.h>
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_bdma)
+#include <stm32_ll_bdma.h>
+#endif
 
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
@@ -111,6 +114,9 @@ struct i2s_stm32_sai_cfg {
 	bool mclk_enable;
 	enum mclk_divider mclk_div;
 	bool synchronous;
+	bool pdm_enable;
+	uint8_t pdm_mic_pairs;
+	uint8_t pdm_clock;
 };
 
 void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai)
@@ -320,7 +326,15 @@ static int i2s_stm32_sai_dma_init(const struct device *dev)
 		return ret;
 	}
 
-	hdma->Instance = STM32_DMA_GET_INSTANCE(stream->reg, stream->dma_channel);
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_bdma)
+	if ((uint32_t)stream->reg == (uint32_t)BDMA) {
+		/* BDMA channels are numbered 0..N-1 in DT, no stream offset */
+		hdma->Instance = __LL_BDMA_GET_CHANNEL_INSTANCE(BDMA, stream->dma_channel);
+	} else
+#endif
+	{
+		hdma->Instance = STM32_DMA_GET_INSTANCE(stream->reg, stream->dma_channel);
+	}
 	hdma->Init.Mode = DMA_NORMAL;
 
 	if (dma_cfg->channel_priority >= ARRAY_SIZE(dma_priority)) {
@@ -341,6 +355,11 @@ static int i2s_stm32_sai_dma_init(const struct device *dev)
 	}
 
 	int idx = find_lsb_set(dma_cfg->source_data_size) - 1;
+
+	if (((const struct i2s_stm32_sai_cfg *)dev->config)->pdm_enable) {
+		/* PDM interface delivers one byte per microphone per frame slot */
+		idx = 0;
+	}
 
 #if defined(CONFIG_DMA_STM32U5)
 	if (idx >= ARRAY_SIZE(dma_src_size)) {
@@ -515,6 +534,94 @@ static int i2s_stm32_sai_f4_clock_source_configure(const struct device *dev)
 }
 #endif /* CONFIG_SOC_SERIES_STM32F4X */
 
+#if defined(SAI_PDMCR_PDMEN)
+/*
+ * PDM interface layout (RM0399 SAI PDM): per microphone pair, SCK = 2 * F_PDM and each
+ * frame of 16 bits carries 8 bitstream bits of each microphone in its own 8-bit slot.
+ * The per-microphone bitstream clock is frame_clk_freq * word_size.
+ */
+static int i2s_stm32_sai_pdm_configure(const struct device *dev)
+{
+	const struct i2s_stm32_sai_cfg *const cfg = dev->config;
+	struct i2s_stm32_sai_data *const dev_data = dev->data;
+	struct stream *stream = &dev_data->stream;
+	SAI_HandleTypeDef *hsai = &dev_data->hsai;
+	const struct device *clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
+	uint8_t slots = 2U * cfg->pdm_mic_pairs;
+	uint32_t sai_ck;
+	uint32_t sck;
+	uint32_t mckdiv;
+
+	if (hsai->Init.AudioMode != SAI_MODEMASTER_RX) {
+		LOG_ERR("PDM requires RX with bit/frame clock controller");
+		return -EINVAL;
+	}
+
+	if (stream->i2s_cfg.channels == 0U || stream->i2s_cfg.channels > slots) {
+		LOG_ERR("PDM supports 1..%u channels", slots);
+		return -EINVAL;
+	}
+
+	if (cfg->pclk_len < 2 ||
+	    clock_control_get_rate(clk, (clock_control_subsys_t)&cfg->pclken[1], &sai_ck) < 0) {
+		LOG_ERR("Cannot get SAI kernel clock rate");
+		return -EIO;
+	}
+
+	sck = stream->i2s_cfg.frame_clk_freq * stream->i2s_cfg.word_size * slots;
+	if (sck == 0U) {
+		return -EINVAL;
+	}
+
+	mckdiv = (sai_ck + sck / 2U) / sck;
+	if (mckdiv == 0U || mckdiv > 63U) {
+		LOG_ERR("PDM clock %u Hz unreachable from %u Hz", sck / slots, sai_ck);
+		return -EINVAL;
+	}
+	if (sai_ck % sck != 0U) {
+		LOG_WRN("PDM clock %u Hz (requested %u Hz)", sai_ck / mckdiv / slots, sck / slots);
+	}
+
+	hsai->Init.Protocol = SAI_FREE_PROTOCOL;
+	hsai->Init.DataSize = SAI_DATASIZE_8;
+	hsai->Init.FirstBit = SAI_FIRSTBIT_MSB;
+	hsai->Init.ClockStrobing = SAI_CLOCKSTROBING_FALLINGEDGE;
+	hsai->Init.MonoStereoMode = SAI_STEREOMODE;
+	hsai->Init.NoDivider = SAI_MASTERDIVIDER_DISABLE;
+	hsai->Init.AudioFrequency = SAI_AUDIO_FREQUENCY_MCKDIV;
+	hsai->Init.Mckdiv = mckdiv;
+#if defined(SAI_MCK_OUTPUT_ENABLE)
+	hsai->Init.MckOutput = SAI_MCK_OUTPUT_DISABLE;
+#endif
+	hsai->Init.PdmInit.Activation = ENABLE;
+	hsai->Init.PdmInit.MicPairsNbr = cfg->pdm_mic_pairs;
+	hsai->Init.PdmInit.ClockEnable =
+		(cfg->pdm_clock == 2U) ? SAI_PDM_CLOCK2_ENABLE : SAI_PDM_CLOCK1_ENABLE;
+
+	hsai->FrameInit.FrameLength = 8U * slots;
+	hsai->FrameInit.ActiveFrameLength = 1U;
+	hsai->FrameInit.FSDefinition = SAI_FS_STARTFRAME;
+	hsai->FrameInit.FSPolarity = SAI_FS_ACTIVE_HIGH;
+	hsai->FrameInit.FSOffset = SAI_FS_FIRSTBIT;
+
+	hsai->SlotInit.FirstBitOffset = 0U;
+	hsai->SlotInit.SlotSize = SAI_SLOTSIZE_DATASIZE;
+	hsai->SlotInit.SlotNumber = slots;
+	hsai->SlotInit.SlotActive = BIT_MASK(stream->i2s_cfg.channels);
+
+	stream->dma_src_size = 1U;
+
+	if (HAL_SAI_Init(hsai) != HAL_OK) {
+		LOG_ERR("HAL_SAI_Init (PDM): <FAILED>");
+		return -EIO;
+	}
+
+	stream->state = I2S_STATE_READY;
+
+	return 0;
+}
+#endif /* SAI_PDMCR_PDMEN */
+
 static int i2s_stm32_sai_configure(const struct device *dev, enum i2s_dir dir,
 				   const struct i2s_config *i2s_cfg)
 {
@@ -574,6 +681,15 @@ static int i2s_stm32_sai_configure(const struct device *dev, enum i2s_dir dir,
 	if (stream->state != I2S_STATE_NOT_READY && stream->state != I2S_STATE_READY) {
 		LOG_ERR("Invalid state: %d", (int)stream->state);
 		return -EINVAL;
+	}
+
+	if (cfg->pdm_enable) {
+#if defined(SAI_PDMCR_PDMEN)
+		return i2s_stm32_sai_pdm_configure(dev);
+#else
+		LOG_ERR("PDM not supported on this series");
+		return -ENOTSUP;
+#endif
 	}
 
 	/* MckOutput is not supported by all MCU series */
@@ -704,6 +820,10 @@ static int i2s_stm32_sai_configure(const struct device *dev, enum i2s_dir dir,
 		LOG_ERR("Unsupported I2S data format");
 		return -EINVAL;
 	}
+
+#if defined(SAI_PDMCR_PDMEN)
+	hsai->Init.PdmInit.Activation = DISABLE;
+#endif
 
 	/* Initialize SAI peripheral */
 	if (HAL_SAI_InitProtocol(hsai, protocol, word_size, 2) != HAL_OK) {
@@ -979,6 +1099,9 @@ static DEVICE_API(i2s, i2s_stm32_driver_api) = {
 		.mclk_enable = DT_INST_PROP(index, mclk_enable),                                   \
 		.mclk_div = (enum mclk_divider)DT_ENUM_IDX(DT_DRV_INST(index), mclk_divider),      \
 		.synchronous = DT_INST_PROP(index, synchronous),                                   \
+		.pdm_enable = DT_INST_PROP(index, pdm_enable),                                     \
+		.pdm_mic_pairs = DT_INST_PROP(index, pdm_mic_pairs),                               \
+		.pdm_clock = DT_INST_PROP(index, pdm_clock),                                       \
 	};                                                                                         \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(index, &i2s_stm32_sai_initialize, NULL, &sai_data_##index,           \

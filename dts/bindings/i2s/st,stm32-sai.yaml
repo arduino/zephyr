@@ -49,6 +49,24 @@ properties:
       - "div-256"
       - "div-512"
 
+  pdm-enable:
+    type: boolean
+    description: |
+      Enable the PDM interface (SAI1/SAI4 block A on STM32H7, RX only).
+      The CKx and Dx pins must be listed within pinctrl-0.
+
+  pdm-mic-pairs:
+    type: int
+    default: 1
+    enum: [1, 2, 3, 4]
+    description: Number of PDM microphone pairs.
+
+  pdm-clock:
+    type: int
+    default: 1
+    enum: [1, 2]
+    description: PDM bitstream clock output used (CK1 or CK2).
+
   synchronous:
     type: boolean
     description: |

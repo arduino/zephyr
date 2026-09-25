@@ -16,6 +16,9 @@ LOG_MODULE_REGISTER(mpxxdtyy);
 
 #define CHANNEL_MASK	0x55
 
+/* SAI PDM interface already delivers MSB-first, per-mic byte interleaved data */
+#define MPXXDTYY_BUS_IS_SAI_PDM DT_PROP_OR(DT_INST_BUS(0), pdm_enable, 0)
+
 static uint8_t ch_demux[128] = {
   0x00, 0x01, 0x00, 0x01, 0x02, 0x03, 0x02, 0x03,
   0x00, 0x01, 0x00, 0x01, 0x02, 0x03, 0x02, 0x03,
@@ -98,7 +101,7 @@ int sw_filter_lib_run(TPDMFilter_InitStruct *pdm_filter,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < pdm_size/2; i++) {
+	for (i = 0; !MPXXDTYY_BUS_IS_SAI_PDM && i < pdm_size/2; i++) {
 		switch (pdm_filter[0].In_MicChannels) {
 		case 1: /* MONO */
 			((uint16_t *)pdm_block)[i] = HTONS(((uint16_t *)pdm_block)[i]);

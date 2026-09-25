@@ -18,7 +18,13 @@ LOG_MODULE_DECLARE(mpxxdtyy);
 #define NUM_RX_BLOCKS			4
 #define PDM_BLOCK_MAX_SIZE_BYTES	512
 
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_bdma) && DT_NODE_EXISTS(DT_NODELABEL(sram4))
+/* BDMA can only reach SRAM4 */
+K_MEM_SLAB_DEFINE_IN_SECT(rx_pdm_i2s_mslab, Z_GENERIC_SECTION(SRAM4),
+			  PDM_BLOCK_MAX_SIZE_BYTES, NUM_RX_BLOCKS, 4);
+#else
 K_MEM_SLAB_DEFINE(rx_pdm_i2s_mslab, PDM_BLOCK_MAX_SIZE_BYTES, NUM_RX_BLOCKS, 1);
+#endif
 
 int mpxxdtyy_i2s_read(const struct device *dev, uint8_t stream, void **buffer,
 		      size_t *size, int32_t timeout)

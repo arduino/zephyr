@@ -23,5 +23,18 @@
 			resets = <&rctl STM32_RESET(APB3, 4)>;
 			status = "disabled";
 		};
+
+		sai4_a: sai4@58005404 {
+			compatible = "st,stm32-sai";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x58005404 0x20>;
+			clocks = <&rcc STM32_CLOCK(APB4, 21)>,
+				 <&rcc STM32_SRC_PLL2_P SAI4A_SEL(1)>;
+			dmas = <&bdma1 0 15 (STM32_DMA_MODE_NORMAL | STM32_DMA_PRIORITY_HIGH |
+					    STM32_DMA_16BITS) 0>;
+			dma-names = "rx";
+			status = "disabled";
+		};
 	};
 };

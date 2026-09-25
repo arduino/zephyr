@@ -96,3 +96,4 @@ dma-cells:
   - channel
   - slot
   - channel-config
+  - features

@@ -508,6 +508,20 @@ BDMA_STM32_EXPORT_API int bdma_stm32_configure(const struct device *dev,
 
 	bdma_stm32_clear_channel_irq(dev, id);
 
+	/* Check potential DMA override (if id parameters and channel are valid) */
+	if (config->linked_channel == STM32_DMA_HAL_OVERRIDE) {
+		/* BDMA channel is overridden by HAL DMA
+		 * Retain that the channel is busy and proceed to the minimal
+		 * configuration to properly route the IRQ
+		 */
+		channel->busy = true;
+		channel->hal_override = true;
+		channel->bdma_callback = config->dma_callback;
+		channel->user_data = config->user_data;
+		channel->cyclic = false;
+		return 0;
+	}
+
 	if (config->head_block->block_size > BDMA_STM32_MAX_DATA_ITEMS) {
 		LOG_ERR("Data size too big: %d\n",
 		       config->head_block->block_size);
