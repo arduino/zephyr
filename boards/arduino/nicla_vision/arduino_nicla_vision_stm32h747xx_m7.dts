@@ -73,6 +73,15 @@
 	clock-frequency = <DT_FREQ_M(480)>;
 };
 
+&pll2 {
+	clocks = <&clk_hse>;
+	div-m = <5>;
+	mul-n = <32>;
+	div-p = <40>;
+	div-q = <2>;
+	div-r = <2>;
+};
+
 &lpuart1 {
 	status = "okay";
 	pinctrl-0 = <&lpuart1_tx_pa9 &lpuart1_rx_pa10>;
@@ -277,4 +286,16 @@ zephyr_udc0: &usbotg_hs {
 
 &dmamux1 {
 	status = "okay";
+};
+
+&pdm0 {
+	pinctrl-0 = <&dfsdm1_ckout_pd10
+		     &dfsdm1_datin2_pe7>;
+	pinctrl-names = "default";
+	dmas = <&dmamux1 0 101 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_HIGH)>;
+	dma-names = "rx";
+
+	dfsdm_channel_2: channel@2 {
+		reg = <2>;
+	};
 };
