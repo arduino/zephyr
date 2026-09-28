@@ -30,7 +30,6 @@
  * 512 satisfies both.
  */
 #define RAW_BUFFER_SIZE  512
-#define DECIMATION       128
 #define QUEUE_DEPTH      4
 
 /* --- PDM to PCM decimation filter ---------------------------------------
@@ -369,6 +368,39 @@ static int rp2040_pdm_configure(const struct device *dev, struct dmic_cfg *cfg)
 		return -EINVAL;
 	}
 
+	/* A single PIO data line carries one microphone */
+	if (cfg->channel.req_num_chan != 1) {
+		return -EINVAL;
+	}
+
+	uint32_t sample_rate = cfg->streams[0].pcm_rate;
+	uint32_t min_clk = cfg->io.min_pdm_clk_freq ? cfg->io.min_pdm_clk_freq : 1200000U;
+	uint32_t max_clk = cfg->io.max_pdm_clk_freq ? cfg->io.max_pdm_clk_freq : 3250000U;
+
+	/* PDM clock = sample_rate x decimation x 2: prefer 128, fall back to 64 */
+	int decimation = 0;
+
+	for (int d = 128; d >= 64; d /= 2) {
+		uint64_t clk = (uint64_t)sample_rate * d * 2U;
+
+		if (clk >= min_clk && clk <= max_clk) {
+			decimation = d;
+			break;
+		}
+	}
+	if (decimation == 0) {
+		return -EINVAL;
+	}
+
+	int raw_buf_len = RAW_BUFFER_SIZE / (decimation / 8);
+	int pcm_samples = raw_buf_len;
+	uint32_t expected_block_size = (uint32_t)pcm_samples * sizeof(int16_t);
+
+	/* The decimation filter output size is fixed by the raw buffer */
+	if (cfg->streams[0].block_size != expected_block_size) {
+		return -EINVAL;
+	}
+
 	/* Release resources from a previous configure() */
 	if (data->configured) {
 		pio_sm_set_enabled(data->pio, data->sm, false);
@@ -378,30 +410,11 @@ static int rp2040_pdm_configure(const struct device *dev, struct dmic_cfg *cfg)
 		data->configured = false;
 	}
 
-	uint32_t sample_rate = cfg->streams[0].pcm_rate;
-
 	/* Store parameters for trigger/read */
 	data->mem_slab  = cfg->streams[0].mem_slab;
-	data->block_size = cfg->streams[0].block_size;
-
-	/* Select decimation factor based on sample rate and clock constraints.
-	 * PDM clock = sample_rate x decimation x 2.
-	 * Mic accepts 1.2 - 3.25 MHz: prefer 128, fall back to 64.
-	 */
-	int decimation = DECIMATION;
-
-	if ((uint64_t)sample_rate * decimation * 2 > 3250000U) {
-		decimation = 64;
-	}
-
-	int raw_buf_len = RAW_BUFFER_SIZE / (decimation / 8);
-	int pcm_samples = raw_buf_len;
-	uint32_t expected_block_size = (uint32_t)pcm_samples * sizeof(int16_t);
-
-	/* The caller's block_size must match what the filter produces */
-	if (data->block_size != expected_block_size) {
-		data->block_size = expected_block_size;
-	}
+	data->block_size = expected_block_size;
+	cfg->channel.act_num_chan = 1;
+	cfg->channel.act_num_streams = 1;
 
 	/* Initialise the decimation filter (mbed-compatible defaults). */
 	data->filter.Fs         = sample_rate;
