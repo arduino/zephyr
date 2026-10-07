@@ -32,6 +32,18 @@
 		watchdog0 = &wdt0;
 	};
 
+	/*
+	 * RP2040 PIO-based PDM microphone (MP34DT06JTR)
+	 * CLK -> GPIO23 (D23), DIN -> GPIO22 (D22)
+	 */
+	dmic_dev: pdm_pio {
+		compatible = "raspberrypi,rp2040-pdm";
+		clk-pin = <23>;
+		din-pin = <22>;
+		pio-num = <0>;
+		gain = <16>;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
