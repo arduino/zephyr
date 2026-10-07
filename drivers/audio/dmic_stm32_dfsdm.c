@@ -130,6 +130,20 @@ void HAL_DFSDM_FilterErrorCallback(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
 	data->state = DMIC_STATE_ERROR;
 }
 
+/* Bytes used to store one decoded PCM sample. 24-bit samples are kept
+ * sign-extended in an int32_t (4 bytes), matching the DMA output format.
+ */
+static inline uint8_t dmic_stm32_dfsdm_sample_bytes(uint8_t pcm_width)
+{
+	if (pcm_width <= 8) {
+		return 1;
+	} else if (pcm_width <= 16) {
+		return 2;
+	}
+
+	return 4;
+}
+
 static void dmic_stm32_dfsdm_write_sample(uint8_t *dst, uint8_t sample_size, int32_t sample)
 {
 	switch (sample_size) {
@@ -715,7 +729,8 @@ static int dmic_stm32_dfsdm_configure(const struct device *dev, struct dmic_cfg 
 	uint8_t pdm_idx;
 	enum pdm_lr lr = 0;
 	HAL_StatusTypeDef hal_ret;
-	uint32_t requested_samples = stream->block_size / (stream->pcm_width / 8);
+	uint32_t requested_samples =
+		stream->block_size / dmic_stm32_dfsdm_sample_bytes(stream->pcm_width);
 	int ret = 0;
 
 	if (data->state == DMIC_STATE_ACTIVE) {
