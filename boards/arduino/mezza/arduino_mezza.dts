@@ -39,6 +39,7 @@
 		volt-sensor1 = &vbat;
 		button = &button0;
 		fade-led = &pwm_led_0;
+		watchdog0 = &iwdg;
 	};
 
 	pwmleds {

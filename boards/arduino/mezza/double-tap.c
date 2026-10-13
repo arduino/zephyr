@@ -43,6 +43,28 @@ static bool check_tap_cmd()
 	return false;
 }
 
+#if defined(CONFIG_BOOT_WATCHDOG_SETUP_AT_BOOT) && defined(CONFIG_BOOT_USB_DFU_AVOID_WATCHDOG)
+#include <zephyr/drivers/hwinfo.h>
+/* returns true if the reset cause was watchdog */
+bool check_watchdog_reset(void)
+{
+	bool rv = false;
+	uint32_t reset_cause;
+	int err = hwinfo_get_reset_cause(&reset_cause);
+
+	if (err == 0) {
+		if (reset_cause & RESET_WATCHDOG) {
+			LOG_INF("WARNING: Watchdog reset detected! Forcing DFU mode.\n");
+
+			/* Clear the flag so subsequent normal reboots don't trigger this */
+			hwinfo_clear_reset_cause();
+			rv = true;
+		}
+	}
+	return rv;
+}
+#endif
+
 /**
  * @brief Double TAP detection function called by zephyr at Init before
  *        application (in this case application is mcuboot)
@@ -50,13 +72,25 @@ static bool check_tap_cmd()
 static int double_tap_detection(void)
 {
 	int ret;
-
+#if defined(CONFIG_BOOT_WATCHDOG_SETUP_AT_BOOT) && defined(CONFIG_BOOT_USB_DFU_AVOID_WATCHDOG)
+	/* CHECK WATCHDOG CAUSE */
+	if (check_watchdog_reset()) {
+		LOG_INF("Setting bootmode (CAUSE WATCHDOG)\n");
+		ret = bootmode_set(BOOT_MODE_TYPE_BOOTLOADER);
+		retention_clear(retention0);
+		if (ret < 0) {
+			LOG_ERR("ERROR: Unable to set boot mode (%d)\n", ret);
+		}
+		return 0;
+	}
+#endif
+	/* CHECK DOUBLE TAP*/
 	ret = retention_is_valid(retention0);
 
 	if (ret == 1) {
 		LOG_INF("RETENTION-0 is valid\n");
 		if (check_tap_cmd()) {
-			LOG_INF("Setting bootmode\n");
+			LOG_INF("Setting bootmode (CAUSE DOUBLE TAP)\n");
 			ret = bootmode_set(BOOT_MODE_TYPE_BOOTLOADER);
 			retention_clear(retention0);
 			if (ret < 0) {
