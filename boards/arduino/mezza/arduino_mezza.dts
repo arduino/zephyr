@@ -40,6 +40,9 @@
 		button = &button0;
 		fade-led = &pwm_led_0;
 		watchdog0 = &iwdg;
+		mcuboot-led0 = &blue_led_0;
+		led-ethernet = &eth_led;
+		led-wifi = &radio_led;
 	};
 
 	pwmleds {
