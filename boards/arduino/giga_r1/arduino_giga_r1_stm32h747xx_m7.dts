@@ -293,6 +293,22 @@ zephyr_udc0: &usbotg_fs {
 	pinctrl-names = "default";
 };
 
+zephyr_uhc0: &usbotg_hs {
+	compatible = "st,stm32-otghs-uhc", "snps,dwc2";
+	status = "okay";
+	pinctrl-0 = <&usb_otg_hs_dm_pb14 &usb_otg_hs_dp_pb15>;
+	pinctrl-names = "default";
+};
+
+&gpioa {
+	status = "okay";
+	pa15_hog {
+		gpio-hog;
+		gpios = <15 GPIO_ACTIVE_HIGH>;
+		output-high;
+	};
+};
+
 #include <../boards/common/usb/cdc_acm_serial.dtsi>
 
 /* alias used by display shields */
