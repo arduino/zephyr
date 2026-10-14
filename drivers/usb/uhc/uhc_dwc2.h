@@ -39,6 +39,8 @@ struct uhc_dwc2_vendor_quirks {
 	int (*is_phy_clk_off)(const struct device *dev);
 	/* Called to translate a physical address into the bus/DMA address expected by HCDMA */
 	void (*dma_addr_xlate)(const struct device *dev, mem_addr_t *const dma_addr);
+	/* Return non-zero to use the FS PHY even if the core reports a HS PHY */
+	int (*use_fs_phy)(const struct device *dev);
 };
 
 /* Driver configuration per instance */
@@ -78,6 +80,10 @@ struct uhc_dwc2_config {
 
 #if DT_HAS_COMPAT_STATUS_OKAY(nordic_nrf_usbhs_nrf54l)
 #include "uhc_dwc2_nrf_usbhs_nrf54l.h"
+#endif
+
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_otghs_uhc)
+#include "uhc_dwc2_stm32_otghs.h"
 #endif
 
 #define UHC_DWC2_HAS_VENDOR_QUIRK(n)						\
@@ -129,5 +135,6 @@ DWC2_QUIRK_FUNC_DEFINE(disable)
 DWC2_QUIRK_FUNC_DEFINE(shutdown)
 DWC2_QUIRK_FUNC_DEFINE(irq_clear)
 DWC2_QUIRK_FUNC_DEFINE(is_phy_clk_off)
+DWC2_QUIRK_FUNC_DEFINE(use_fs_phy)
 
 #endif /* ZEPHYR_DRIVERS_USB_UHC_DWC2_H */
