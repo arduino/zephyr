@@ -300,7 +300,8 @@ static void dwc2_config_timings(struct usb_dwc2_reg *const base)
 	uint32_t phy_clock_mhz = 0;
 	uint32_t fslspclk = 0;
 	uint32_t frint = 0;
-	bool hs_phy = (usb_dwc2_get_ghwcfg2_hsphytype(ghwcfg2) != USB_DWC2_GHWCFG2_HSPHYTYPE_NO_HS);
+	bool hs_phy = (usb_dwc2_get_ghwcfg2_hsphytype(ghwcfg2) != USB_DWC2_GHWCFG2_HSPHYTYPE_NO_HS) &&
+		      !(gusbcfg & USB_DWC2_GUSBCFG_PHYSEL_USB11);
 
 	if (hs_phy) {
 		fslspclk = USB_DWC2_HCFG_FSLSPCLKSEL_CLK3060;
@@ -385,7 +386,8 @@ static inline int dwc2_core_init_host_gusbcfg(const struct device *dev)
 		return -EIO;
 	}
 
-	if (usb_dwc2_get_ghwcfg2_hsphytype(ghwcfg2) == USB_DWC2_GHWCFG2_HSPHYTYPE_NO_HS) {
+	if (usb_dwc2_get_ghwcfg2_hsphytype(ghwcfg2) == USB_DWC2_GHWCFG2_HSPHYTYPE_NO_HS ||
+	    uhc_dwc2_quirk_use_fs_phy(dev) > 0) {
 		/* Select FS PHY */
 		LOG_DBG("Fullspeed PHY init");
 		sys_set_bits((mem_addr_t)&base->gusbcfg, USB_DWC2_GUSBCFG_PHYSEL_USB11);

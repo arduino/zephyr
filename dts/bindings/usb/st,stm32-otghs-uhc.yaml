@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  STM32 OTGHS controller used as USB host by the DWC2 UHC driver (embedded FS PHY).
+
+  Use in place of "st,stm32-otghs", keeping "snps,dwc2" as the second compatible
+  so that it is picked up by the UHC DWC2 driver, e.g.
+
+    compatible = "st,stm32-otghs-uhc", "snps,dwc2";
+
+  CONFIG_UDC_DWC2 and CONFIG_UDC_STM32 must not claim this node (UDC_DWC2=n).
+
+compatible: "st,stm32-otghs-uhc"
+
+include: st,stm32-otghs-common.yaml
+
+properties:
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
