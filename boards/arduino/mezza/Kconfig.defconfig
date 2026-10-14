@@ -5,7 +5,7 @@
 
 if BOARD_ARDUINO_MEZZA
 
-configdefault NET_L2_ETHERNET
-	default y
+configdefault ETH_DRIVER
+	default y if NETWORKING
 
 endif # BOARD_ARDUINO_MEZZA
