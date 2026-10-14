@@ -421,14 +421,18 @@ zephyr_udc1: &usbotg_fs {
  *  ADC
  */
 
+&adc12_common {
+	st,adc-clock-source = "ASYNC";
+	st,adc-prescaler = <6>;
+	status = "okay";
+};
+
 &adc2 {
 	clocks = <&rcc STM32_CLOCK(AHB2, 10)>,
 		 <&rcc STM32_SRC_HCLK ADCDAC_SEL(0)>;
 	clock-names = "adcx", "adc_ker";
 	pinctrl-0 = <&adc2_inp2_pf13 &adc2_inp6_pf14>;
 	pinctrl-names = "default";
-	st,adc-clock-source = "ASYNC";
-	st,adc-prescaler = <6>;
 	status = "okay";
 
 	#address-cells = <1>;
