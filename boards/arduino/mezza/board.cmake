@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # keep first
-board_runner_args(stm32cubeprogrammer "--port=swd" "--reset-mode=hw")
+board_runner_args(stm32cubeprogrammer "--port=usb1" "--reset-mode=hw" "--use-elf")
 
 board_runner_args(pyocd "--target=stm32h5f5lj")
 
