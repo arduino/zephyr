@@ -24,6 +24,24 @@ static int stm32_otghs_uhc_use_fs_phy(const struct device *dev)
 	return 1;
 }
 
+/* Same as the STM32 HAL: the IN response time depends on the AHB clock */
+static void stm32_otghs_uhc_set_trdt(struct usb_dwc2_reg *const base)
+{
+	const uint32_t trdt_pos = 10U;
+	const uint32_t trdt_mask = 0xFU << trdt_pos;
+	uint32_t gusbcfg;
+
+	if (sys_clock_hw_cycles_per_sec() < 32000000U) {
+		LOG_WRN("AHB clock below 32 MHz, keeping the default turnaround time");
+		return;
+	}
+
+	gusbcfg = sys_read32((mem_addr_t)&base->gusbcfg);
+	gusbcfg &= ~trdt_mask;
+	gusbcfg |= 6U << trdt_pos;
+	sys_write32(gusbcfg, (mem_addr_t)&base->gusbcfg);
+}
+
 static int stm32_otghs_uhc_pre_init(const struct device *dev)
 {
 	const struct stm32_otghs_uhc_config *const cfg = UHC_DWC2_QUIRK_CONFIG(dev);
@@ -62,6 +80,7 @@ static int stm32_otghs_uhc_pre_init(const struct device *dev)
 	sys_set_bits((mem_addr_t)&base->gusbcfg, USB_DWC2_GUSBCFG_PHYSEL_USB11);
 	sys_set_bits((mem_addr_t)&base->ggpio, USB_DWC2_GGPIO_STM32_PWRDWN);
 	sys_clear_bits((mem_addr_t)&base->ggpio, USB_DWC2_GGPIO_STM32_VBDEN);
+	stm32_otghs_uhc_set_trdt(base);
 
 	return 0;
 }
@@ -70,9 +89,22 @@ static int stm32_otghs_uhc_pre_enable(const struct device *dev)
 {
 	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
 
-	/* Not guaranteed to survive the core reset done in init */
 	sys_set_bits((mem_addr_t)&base->ggpio, USB_DWC2_GGPIO_STM32_PWRDWN);
 	sys_clear_bits((mem_addr_t)&base->ggpio, USB_DWC2_GGPIO_STM32_VBDEN);
+
+	return 0;
+}
+
+/* The core soft reset restores the turnaround time (TRDT reads 5 afterwards) */
+static int stm32_otghs_uhc_post_reset(const struct device *dev)
+{
+	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
+
+	stm32_otghs_uhc_set_trdt(base);
+	sys_set_bits((mem_addr_t)&base->ggpio, USB_DWC2_GGPIO_STM32_PWRDWN);
+	sys_clear_bits((mem_addr_t)&base->ggpio, USB_DWC2_GGPIO_STM32_VBDEN);
+	/* The embedded PHY is full-speed only, as the STM32 HAL host init sets it */
+	sys_set_bits((mem_addr_t)&base->hcfg, USB_DWC2_HCFG_FSLSSUPP);
 
 	return 0;
 }
@@ -100,16 +132,24 @@ static int stm32_otghs_uhc_shutdown(const struct device *dev)
 }
 
 #define UHC_DWC2_STM32_IS_OTGHS(n) DT_INST_NODE_HAS_COMPAT(n, st_stm32_otghs_uhc)
+#define UHC_DWC2_STM32_IS_OTGFS(n) DT_INST_NODE_HAS_COMPAT(n, st_stm32_otgfs_uhc)
+#define UHC_DWC2_STM32_IS_OTG(n)                                               \
+	UTIL_OR(UHC_DWC2_STM32_IS_OTGHS(n), UHC_DWC2_STM32_IS_OTGFS(n))
 
-/* The node has several interrupts, the controller one is named "otghs" */
+/* The node may have several interrupts, the controller one is named "otghs"/"otgfs" */
 #define UHC_DWC2_STM32_IRQN(n)                                                 \
 	COND_CODE_1(UHC_DWC2_STM32_IS_OTGHS(n),                                \
-		    (DT_INST_IRQ_BY_NAME(n, otghs, irq)), (DT_INST_IRQN(n)))
+		    (DT_INST_IRQ_BY_NAME(n, otghs, irq)),                      \
+		    (COND_CODE_1(UHC_DWC2_STM32_IS_OTGFS(n),                   \
+				 (DT_INST_IRQ_BY_NAME(n, otgfs, irq)),         \
+				 (DT_INST_IRQN(n)))))
 
 #define UHC_DWC2_STM32_IRQ_PRIO(n)                                             \
 	COND_CODE_1(UHC_DWC2_STM32_IS_OTGHS(n),                                \
 		    (DT_INST_IRQ_BY_NAME(n, otghs, priority)),                 \
-		    (DT_INST_IRQ(n, priority)))
+		    (COND_CODE_1(UHC_DWC2_STM32_IS_OTGFS(n),                   \
+				 (DT_INST_IRQ_BY_NAME(n, otgfs, priority)),    \
+				 (DT_INST_IRQ(n, priority)))))
 
 #define UHC_DWC2_IRQ_DT_INST_DEFINE(n)                                         \
 	static void uhc_dwc2_irq_enable_func_##n(const struct device *dev)     \
@@ -146,12 +186,13 @@ static int stm32_otghs_uhc_shutdown(const struct device *dev)
 	static const struct uhc_dwc2_vendor_quirks uhc_dwc2_vendor_quirks_##n = { \
 		.pre_init = stm32_otghs_uhc_pre_init,                          \
 		.pre_enable = stm32_otghs_uhc_pre_enable,                      \
+		.post_reset = stm32_otghs_uhc_post_reset,                      \
 		.shutdown = stm32_otghs_uhc_shutdown,                          \
 		.use_fs_phy = stm32_otghs_uhc_use_fs_phy,                      \
 	};
 
 #define QUIRK_STM32_OTGHS_UHC_DEFINE(n)                                        \
-	COND_CODE_1(UHC_DWC2_STM32_IS_OTGHS(n),                                \
+	COND_CODE_1(UHC_DWC2_STM32_IS_OTG(n),                                  \
 		    (QUIRK_STM32_OTGHS_UHC_INST(n)), ())
 
 DT_INST_FOREACH_STATUS_OKAY(QUIRK_STM32_OTGHS_UHC_DEFINE)
