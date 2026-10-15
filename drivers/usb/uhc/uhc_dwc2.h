@@ -35,6 +35,8 @@ struct uhc_dwc2_vendor_quirks {
 	int (*shutdown)(const struct device *dev);
 	/* Called at the end of IRQ handling */
 	int (*irq_clear)(const struct device *dev);
+	/* Called after the core soft reset done on enable and on disconnection */
+	int (*post_reset)(const struct device *dev);
 	/* Called while waiting for bits that require PHY to be clocked */
 	int (*is_phy_clk_off)(const struct device *dev);
 	/* Called to translate a physical address into the bus/DMA address expected by HCDMA */
@@ -88,7 +90,7 @@ struct uhc_dwc2_config {
 #include "uhc_dwc2_stm32u5_hsotg.h"
 #endif
 
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_otghs_uhc)
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32_otghs_uhc) || DT_HAS_COMPAT_STATUS_OKAY(st_stm32_otgfs_uhc)
 #include "uhc_dwc2_stm32_otghs.h"
 #endif
 
@@ -144,6 +146,7 @@ DWC2_QUIRK_FUNC_DEFINE(post_enable)
 DWC2_QUIRK_FUNC_DEFINE(disable)
 DWC2_QUIRK_FUNC_DEFINE(shutdown)
 DWC2_QUIRK_FUNC_DEFINE(irq_clear)
+DWC2_QUIRK_FUNC_DEFINE(post_reset)
 DWC2_QUIRK_FUNC_DEFINE(is_phy_clk_off)
 DWC2_QUIRK_FUNC_DEFINE(use_fs_phy)
 

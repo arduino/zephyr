@@ -72,6 +72,18 @@ enum uhc_dwc2_channel_event {
 #define EPSIZE_BULK_FS			64U
 #define EPSIZE_BULK_HS			512U
 
+/* Slave mode: GRXSTSP packet status of a received IN data packet */
+#define PIO_PKTSTS_IN_DATA		2U
+
+/* Slave mode: channel events that require the channel to be halted by software */
+#define USB_DWC2_HCINT_SLAVE_HALT_BITS	(USB_DWC2_HCINT_XFERCOMPL |		\
+					 USB_DWC2_HCINT_STALL |			\
+					 USB_DWC2_HCINT_BBLERR |		\
+					 USB_DWC2_HCINT_XACTERR |		\
+					 USB_DWC2_HCINT_NAK |			\
+					 USB_DWC2_HCINT_FRMOVRUN |		\
+					 USB_DWC2_HCINT_DTGERR)
+
 /* Mask to clear HPRT register */
 #define USB_DWC2_HPRT_W1C_MSK		(USB_DWC2_HPRT_PRTENA |			\
 					 USB_DWC2_HPRT_PRTCONNDET |		\
@@ -132,6 +144,20 @@ struct uhc_dwc2_channel {
 	uint32_t length;
 	/* Channel transfer data helpers */
 	struct uhc_dwc2_channel_data *data;
+	/* Slave mode: buffer of the current stage and its length */
+	uint8_t *pio_buf;
+	uint32_t pio_len;
+	/* Slave mode: bytes received (IN) or written to the TX FIFO (OUT) */
+	uint32_t pio_off;
+	/* Slave mode: offset and packet count programmed at the last (re)start */
+	uint32_t pio_base;
+	uint32_t pio_pkts;
+	/* Slave mode: stage is IN */
+	bool pio_in;
+	/* Slave mode: OUT data still has to be written to the TX FIFO */
+	bool pio_tx_active;
+	/* Slave mode: a halt was requested after a channel event */
+	bool slave_halting;
 };
 
 struct uhc_dwc2_data {
@@ -153,6 +179,8 @@ struct uhc_dwc2_data {
 	bool debouncing;
 	/* Root port has an attached device */
 	bool has_device;
+	/* Core has no internal DMA, data is moved through the FIFOs by the driver */
+	bool slave;
 };
 
 struct usb_dwc2_reg *uhc_dwc2_get_base(const struct device *dev)
@@ -427,6 +455,7 @@ static inline int dwc2_core_init_host_gusbcfg(const struct device *dev)
 
 static inline int dwc2_core_init_gahbcfg(const struct device *dev)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
 	uint32_t ghwcfg2;
 	uint32_t gahbcfg;
@@ -442,11 +471,14 @@ static inline int dwc2_core_init_gahbcfg(const struct device *dev)
 
 	ghwcfg2 = sys_read32((mem_addr_t)&base->ghwcfg2);
 	if (usb_dwc2_get_ghwcfg2_otgarch(ghwcfg2) == USB_DWC2_GHWCFG2_OTGARCH_INTERNALDMA) {
+		priv->slave = false;
 		sys_set_bits((mem_addr_t)&base->gahbcfg, USB_DWC2_GAHBCFG_DMAEN);
 	} else {
-		/* TODO: Implement Slave mode */
-		LOG_ERR("DMA isn't supported by the hardware");
-		return -ENXIO;
+		LOG_INF("No internal DMA, using Slave mode");
+		priv->slave = true;
+		/* TX FIFO empty interrupts fire when the FIFO is completely empty */
+		sys_set_bits((mem_addr_t)&base->gahbcfg,
+			     USB_DWC2_GAHBCFG_NPTXFEMPLVL | USB_DWC2_GAHBCFG_PTXFEMPLVL);
 	}
 
 	/* Enable Global Interrupt */
@@ -554,7 +586,7 @@ static int dwc2_core_soft_reset(const struct device *dev)
 	return 0;
 }
 
-static int dwc2_set_fifo_sizes(struct usb_dwc2_reg *const base)
+static int dwc2_set_fifo_sizes(struct usb_dwc2_reg *const base, const bool slave)
 {
 	const uint32_t ghwcfg2 = sys_read32((mem_addr_t)&base->ghwcfg2);
 	const uint32_t ghwcfg3 = sys_read32((mem_addr_t)&base->ghwcfg3);
@@ -570,7 +602,7 @@ static int dwc2_set_fifo_sizes(struct usb_dwc2_reg *const base)
 	const uint32_t ptx_largest = largest;
 	const uint32_t dfifodepth = FIELD_GET(USB_DWC2_GHWCFG3_DFIFODEPTH_MASK, ghwcfg3);
 	const uint32_t numhstchnl = FIELD_GET(USB_DWC2_GHWCFG2_NUMHSTCHNL_MASK, ghwcfg2);
-	uint32_t fifo_available = dfifodepth - (numhstchnl + 1);
+	uint32_t fifo_available = dfifodepth - (slave ? 0U : numhstchnl + 1);
 	const uint16_t fifo_nptxfdep = 2 * nptx_largest;
 	const uint16_t fifo_rxfsiz = 2 * (ptx_largest + 2) + numhstchnl + 1;
 	const uint16_t fifo_ptxfsiz = fifo_available - (fifo_nptxfdep + fifo_rxfsiz);
@@ -582,6 +614,26 @@ static int dwc2_set_fifo_sizes(struct usb_dwc2_reg *const base)
 
 	LOG_DBG("Setting FIFO sizes: top=%u, nptx=%u, rx=%u, ptx=%u",
 		fifo_available * 4, fifo_nptxfdep * 4, fifo_rxfsiz * 4, fifo_ptxfsiz * 4);
+
+	if (slave) {
+		/* The RX FIFO always starts at 0, the TX FIFOs follow it */
+		sys_write32(usb_dwc2_set_grxfsiz(fifo_rxfsiz), (mem_addr_t)&base->grxfsiz);
+
+		gnptxfsiz = usb_dwc2_set_gnptxfsiz_nptxfdep(fifo_nptxfdep);
+		gnptxfsiz |= usb_dwc2_set_gnptxfsiz_nptxfstaddr(fifo_rxfsiz);
+		sys_write32(gnptxfsiz, (mem_addr_t)&base->gnptxfsiz);
+
+		hptxfsiz = usb_dwc2_set_hptxfsiz_ptxfsize(fifo_ptxfsiz);
+		hptxfsiz |= fifo_rxfsiz + fifo_nptxfdep;
+		sys_write32(hptxfsiz, (mem_addr_t)&base->hptxfsiz);
+
+		ret = dwc2_flush_tx_fifo(base, MAX_CHANNELS);
+		if (ret != 0) {
+			return ret;
+		}
+
+		return dwc2_flush_rx_fifo(base);
+	}
 
 	/* FIFO config */
 	gdfifocfg = usb_dwc2_set_gdfifocfg_epinfobaseaddr(fifo_available);
@@ -680,7 +732,7 @@ static int port_reset(const struct device *dev)
 	uhc_lock_internal(dev, K_FOREVER);
 
 	/* FIFO */
-	ret = dwc2_set_fifo_sizes(base);
+	ret = dwc2_set_fifo_sizes(base, priv->slave);
 	if (ret != 0) {
 		LOG_ERR("Unable to set FIFO sizes");
 		return ret;
@@ -774,9 +826,240 @@ static int port_resume(const struct device *const dev)
 	return ret;
 }
 
+static inline mem_addr_t pio_fifo_addr(struct usb_dwc2_reg *const base, const uint8_t index)
+{
+	return (mem_addr_t)base + 0x1000UL * (index + 1U);
+}
+
+static void pio_fifo_write(struct usb_dwc2_reg *const base, const uint8_t index,
+			   const uint8_t *src, const uint32_t len)
+{
+	const mem_addr_t fifo = pio_fifo_addr(base, index);
+
+	for (uint32_t i = 0; i < len; i += 4U) {
+		uint32_t word = 0;
+
+		memcpy(&word, &src[i], MIN(4U, len - i));
+		sys_write32(word, fifo);
+	}
+}
+
+static void pio_fifo_read(struct usb_dwc2_reg *const base, uint8_t *dst,
+			  const uint32_t store_len, const uint32_t bcnt)
+{
+	/* Received data of all channels is read from the first FIFO window */
+	const mem_addr_t fifo = pio_fifo_addr(base, 0);
+
+	for (uint32_t i = 0; i < bcnt; i += 4U) {
+		uint32_t word = sys_read32(fifo);
+
+		if (i < store_len) {
+			memcpy(&dst[i], &word, MIN(4U, store_len - i));
+		}
+	}
+}
+
+/* Write pending OUT data to the non-periodic TX FIFO as far as it has room */
+static void pio_tx_service(const struct device *dev)
+{
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
+	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
+	unsigned int key = irq_lock();
+	bool blocked = false;
+
+	for (uint32_t idx = 0; idx < priv->numhstchnl && !blocked; idx++) {
+		struct uhc_dwc2_channel *const ch = &priv->ch[idx];
+
+		while (ch->xfer != NULL && ch->pio_tx_active) {
+			const uint32_t len = MIN(ch->pio_len - ch->pio_off, ch->xfer->mps);
+			const uint32_t words = DIV_ROUND_UP(len, 4U);
+			const uint32_t sts = sys_read32((mem_addr_t)&base->gnptxsts);
+
+			/* Need room for the packet and a free request queue entry */
+			if ((sts & 0xFFFFU) < words || ((sts >> 16) & 0xFFU) == 0U) {
+				if (!(sys_read32((mem_addr_t)&base->gintmsk) & USB_DWC2_GINTSTS_NPTXFEMP)) {
+					LOG_DBG("ch%u TX blocked, GNPTXSTS 0x%08x, need %u words",
+						ch->index, sts, words);
+				}
+				blocked = true;
+				break;
+			}
+
+			pio_fifo_write(base, ch->index, ch->pio_buf + ch->pio_off, len);
+			ch->pio_off += len;
+
+			if (ch->pio_off >= ch->pio_len) {
+				ch->pio_tx_active = false;
+			}
+		}
+	}
+
+	if (blocked) {
+		sys_set_bits((mem_addr_t)&base->gintmsk, USB_DWC2_GINTSTS_NPTXFEMP);
+	} else {
+		sys_clear_bits((mem_addr_t)&base->gintmsk, USB_DWC2_GINTSTS_NPTXFEMP);
+	}
+
+	irq_unlock(key);
+}
+
+/* Drain the RX FIFO, storing IN data into the buffer of the owning channel */
+static void pio_rx_service(const struct device *dev)
+{
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
+	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
+
+	while (sys_read32((mem_addr_t)&base->gintsts) & USB_DWC2_GINTSTS_RXFLVL) {
+		const uint32_t grxsts = sys_read32((mem_addr_t)&base->grxstsp);
+		const uint32_t chnum = grxsts & USB_DWC2_GRXSTSR_CHNUM_MASK;
+		const uint32_t bcnt = usb_dwc2_get_grxstsp_bcnt(grxsts);
+		const uint32_t pktsts = usb_dwc2_get_grxstsp_pktsts(grxsts);
+		struct uhc_dwc2_channel *ch;
+		uint32_t store_len = 0;
+		uint32_t hcchar;
+
+		LOG_DBG("RX status 0x%08x: ch%u pktsts %u bcnt %u", grxsts, chnum, pktsts, bcnt);
+
+		/* Only the "IN data packet received" status carries data */
+		if (pktsts != PIO_PKTSTS_IN_DATA || chnum >= MAX_CHANNELS) {
+			continue;
+		}
+
+		ch = &priv->ch[chnum];
+
+		if (ch->xfer != NULL && ch->pio_in) {
+			store_len = MIN(bcnt, ch->pio_len - ch->pio_off);
+		}
+
+		/* Always drain the FIFO, even if nobody wants the data */
+		pio_fifo_read(base, ch->pio_buf + ch->pio_off, store_len, bcnt);
+
+		if (ch->xfer == NULL || !ch->pio_in) {
+			continue;
+		}
+
+		ch->pio_off += store_len;
+
+		/* A short packet ends the transfer, otherwise request the next packet */
+		if (bcnt >= ch->xfer->mps && !ch->slave_halting && !ch->halt_cancel &&
+		    usb_dwc2_get_hctsiz_pktcnt(sys_read32((mem_addr_t)&ch->regs->hctsiz)) > 0U) {
+			hcchar = sys_read32((mem_addr_t)&ch->regs->hcchar);
+			hcchar |= USB_DWC2_HCCHAR_CHENA;
+			hcchar &= ~USB_DWC2_HCCHAR_CHDIS;
+			sys_write32(hcchar, (mem_addr_t)&ch->regs->hcchar);
+		}
+	}
+}
+
+/* Request a halt after a channel event, slave mode channels do not halt on their own */
+static void ch_slave_halt(struct uhc_dwc2_channel *const ch)
+{
+	uint32_t hcchar = sys_read32((mem_addr_t)&ch->regs->hcchar);
+
+	hcchar |= USB_DWC2_HCCHAR_CHENA | USB_DWC2_HCCHAR_CHDIS;
+	sys_write32(hcchar, (mem_addr_t)&ch->regs->hcchar);
+}
+
+/*
+ * Program HCTSIZ and hand the buffer to the channel, either through HCDMA or, in
+ * slave mode, by recording it for the FIFO servicing.
+ */
+static void ch_program(const struct device *dev, struct uhc_dwc2_channel *const ch,
+		       const uint32_t hctsiz, void *const buf, const uint32_t len,
+		       const bool in)
+{
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
+	mem_addr_t dma_addr = (mem_addr_t)buf;
+
+	sys_write32(hctsiz, (mem_addr_t)&ch->regs->hctsiz);
+
+	if (priv->slave) {
+		ch->pio_buf = buf;
+		ch->pio_len = len;
+		ch->pio_off = 0;
+		ch->pio_base = 0;
+		ch->pio_pkts = usb_dwc2_get_hctsiz_pktcnt(hctsiz);
+		ch->pio_in = in;
+		ch->pio_tx_active = !in && len > 0U;
+		return;
+	}
+
+	if (dma_addr != 0 && len > 0) {
+		if (in) {
+			sys_cache_data_invd_range((void *)dma_addr, len);
+		} else {
+			sys_cache_data_flush_range((void *)dma_addr, len);
+		}
+	}
+
+	uhc_dwc2_quirk_dma_addr_xlate(dev, &dma_addr);
+	sys_write32((uint32_t)dma_addr, (mem_addr_t)&ch->regs->hcdma);
+}
+
+/* To be called right after the channel was enabled */
+static inline void ch_kick(const struct device *dev, struct uhc_dwc2_channel *const ch)
+{
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
+
+	if (priv->slave && ch->pio_tx_active) {
+		pio_tx_service(dev);
+	}
+}
+
+/* Received length of the current stage */
+static inline uint32_t ch_actual_len(const struct device *dev, struct uhc_dwc2_channel *const ch)
+{
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
+
+	if (priv->slave) {
+		return ch->pio_off;
+	}
+
+	return ch->length - usb_dwc2_get_hctsiz_xfersize(sys_read32((mem_addr_t)&ch->regs->hctsiz));
+}
+
+/* Continue the stage after a NAK or an error, from the first packet not completed */
+static void ch_pio_resume(const struct device *dev, struct uhc_dwc2_channel *const ch)
+{
+	uint32_t hctsiz = sys_read32((mem_addr_t)&ch->regs->hctsiz);
+	uint32_t remaining;
+	uint32_t pkt_cnt;
+	uint32_t hcchar;
+
+	if (!ch->pio_in) {
+		/* OUT: every completed packet decrements the packet count */
+		const uint32_t sent = ch->pio_pkts - usb_dwc2_get_hctsiz_pktcnt(hctsiz);
+
+		ch->pio_off = MIN(ch->pio_len, ch->pio_base + sent * ch->xfer->mps);
+	}
+
+	remaining = ch->pio_len - ch->pio_off;
+	pkt_cnt = calc_packet_count(remaining, ch->xfer->mps);
+
+	hctsiz &= USB_DWC2_HCTSIZ_PID_MASK;
+	hctsiz |= usb_dwc2_set_hctsiz_pktcnt(pkt_cnt) | usb_dwc2_set_hctsiz_xfersize(remaining);
+	LOG_DBG("Resume ch%u %s: pid %u, pkts %u, rem %u, HCCHAR 0x%08x", ch->index,
+		ch->pio_in ? "IN" : "OUT", usb_dwc2_get_hctsiz_pid(hctsiz), pkt_cnt, remaining,
+		sys_read32((mem_addr_t)&ch->regs->hcchar));
+	sys_write32(hctsiz, (mem_addr_t)&ch->regs->hctsiz);
+
+	ch->pio_base = ch->pio_off;
+	ch->pio_pkts = pkt_cnt;
+	ch->pio_tx_active = !ch->pio_in && remaining > 0U;
+	ch->slave_halting = false;
+
+	hcchar = sys_read32((mem_addr_t)&ch->regs->hcchar);
+	hcchar |= USB_DWC2_HCCHAR_CHENA;
+	hcchar &= ~USB_DWC2_HCCHAR_CHDIS;
+	sys_write32(hcchar, (mem_addr_t)&ch->regs->hcchar);
+
+	ch_kick(dev, ch);
+}
+
 static inline void ch_process_control(const struct device *dev,
 				      struct uhc_dwc2_channel *const ch)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	struct uhc_transfer *const xfer = ch->xfer;
 	const struct usb_setup_packet *setup = (const struct usb_setup_packet *)xfer->setup_pkt;
 	bool next_dir_is_in;
@@ -825,12 +1108,13 @@ static inline void ch_process_control(const struct device *dev,
 		}
 	} else {
 		/* Finished UHC_CONTROL_STAGE_DATA */
-		hctsiz = sys_read32((mem_addr_t)&ch->regs->hctsiz);
-		remaining = usb_dwc2_get_hctsiz_xfersize(hctsiz);
-		actual_len = ch->length - remaining;
+		actual_len = ch_actual_len(dev, ch);
+		remaining = ch->length - actual_len;
 
 		if (usb_reqtype_is_to_host(setup)) {
-			sys_cache_data_invd_range(net_buf_tail(xfer->buf), actual_len);
+			if (!priv->slave) {
+				sys_cache_data_invd_range(net_buf_tail(xfer->buf), actual_len);
+			}
 			net_buf_add(xfer->buf, actual_len);
 
 			LOG_DBG("Control DATA IN completed, prog=%u, rem=%u, act=%u, tailroom=%zu",
@@ -862,17 +1146,7 @@ static inline void ch_process_control(const struct device *dev,
 		usb_dwc2_set_hctsiz_pktcnt(pkt_cnt) |
 		usb_dwc2_set_hctsiz_xfersize(size);
 
-	if (dma_addr != 0 && size > 0) {
-		if (next_dir_is_in) {
-			sys_cache_data_invd_range((void *)dma_addr, size);
-		} else {
-			sys_cache_data_flush_range((void *)dma_addr, size);
-		}
-	}
-
-	uhc_dwc2_quirk_dma_addr_xlate(dev, &dma_addr);
-	sys_write32(hctsiz, (mem_addr_t)&ch->regs->hctsiz);
-	sys_write32((uint32_t)dma_addr, (mem_addr_t)&ch->regs->hcdma);
+	ch_program(dev, ch, hctsiz, (void *)dma_addr, size, next_dir_is_in);
 
 	/* TODO: Configure split transaction if needed */
 
@@ -880,6 +1154,8 @@ static inline void ch_process_control(const struct device *dev,
 	hcchar |= USB_DWC2_HCCHAR_CHENA;
 	hcchar &= ~USB_DWC2_HCCHAR_CHDIS;
 	sys_write32(hcchar, (mem_addr_t)&ch->regs->hcchar);
+
+	ch_kick(dev, ch);
 }
 
 static bool xfer_is_done(const struct uhc_transfer *xfer)
@@ -934,6 +1210,10 @@ static uint32_t ch_handle_in_bulk_control(const struct device *dev,
 					ch->index, hcint, ch->error_count);
 				ch_events |= BIT(UHC_DWC2_CHANNEL_DO_REINIT);
 			}
+		} else if (hcint & USB_DWC2_HCINT_NAK) {
+			/* Slave mode: the device had no data, ask again */
+			ch->error_count = 0;
+			ch_events |= BIT(UHC_DWC2_CHANNEL_DO_REINIT);
 		} else {
 			/* The channel halted without reporting a reason. Fail the
 			 * transfer instead of leaving the caller waiting.
@@ -995,6 +1275,10 @@ static inline uint32_t ch_handle_out_bulk_control(const struct device *dev,
 					ch_events |= BIT(UHC_DWC2_CHANNEL_DO_REWIND);
 				}
 			}
+		} else if (hcint & (USB_DWC2_HCINT_NAK | USB_DWC2_HCINT_NYET)) {
+			/* Slave mode: the device was not ready, send the packet again */
+			ch->error_count = 1;
+			ch_events |= BIT(UHC_DWC2_CHANNEL_DO_REINIT);
 		} else {
 			/* The channel halted without reporting a reason. Fail the
 			 * transfer instead of leaving the caller waiting.
@@ -1083,6 +1367,7 @@ static uint32_t ch_handle_in_interrupt(struct uhc_dwc2_channel *const ch,
 static uint32_t ch_handle_irq_events(const struct device *dev,
 				     struct uhc_dwc2_channel *const ch)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	struct uhc_transfer *const xfer = ch->xfer;
 	uint32_t ch_events;
 	uint32_t hcint;
@@ -1100,6 +1385,32 @@ static uint32_t ch_handle_irq_events(const struct device *dev,
 		}
 
 		return 0U;
+	}
+
+	if (priv->slave) {
+		if ((hcint & USB_DWC2_HCINT_CHHLTD) == 0U) {
+			/* The core does not halt the channel by itself, do it and wait */
+			const uint32_t cause = hcint & USB_DWC2_HCINT_SLAVE_HALT_BITS;
+
+			if (cause != 0U) {
+				LOG_DBG("ch%u event 0x%08x, HCCHAR 0x%08x, HCTSIZ 0x%08x", ch->index,
+					cause, sys_read32((mem_addr_t)&ch->regs->hcchar),
+					sys_read32((mem_addr_t)&ch->regs->hctsiz));
+				ch->hcint_cplt_pending |= cause;
+
+				if (!ch->slave_halting) {
+					ch->slave_halting = true;
+					ch_slave_halt(ch);
+				}
+			}
+
+			return 0U;
+		}
+
+		ch->slave_halting = false;
+		ch->pio_tx_active = false;
+		hcint |= ch->hcint_cplt_pending;
+		ch->hcint_cplt_pending = 0U;
 	}
 
 	if ((hcint & USB_DWC2_HCINT_CPLT_BITS) != 0U ||
@@ -1165,10 +1476,14 @@ static inline bool port_debounce(const struct device *dev, const enum uhc_dwc2_e
 
 static inline void port_enable(const struct device *dev)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
 
 	sys_clear_bits((mem_addr_t)&base->haintmsk, 0xFFFFFFFFUL);
 	sys_set_bits((mem_addr_t)&base->gintmsk, USB_DWC2_GINTSTS_BITS);
+	if (priv->slave) {
+		sys_set_bits((mem_addr_t)&base->gintmsk, USB_DWC2_GINTSTS_RXFLVL);
+	}
 	dwc2_set_power(base, true);
 }
 
@@ -1177,7 +1492,9 @@ static inline void port_disable(const struct device *dev)
 	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
 
 	sys_clear_bits((mem_addr_t)&base->haintmsk, 0xFFFFFFFFUL);
-	sys_clear_bits((mem_addr_t)&base->gintmsk, USB_DWC2_GINTSTS_BITS);
+	sys_clear_bits((mem_addr_t)&base->gintmsk, USB_DWC2_GINTSTS_BITS |
+							USB_DWC2_GINTSTS_RXFLVL |
+							USB_DWC2_GINTSTS_NPTXFEMP);
 	dwc2_set_power(base, false);
 }
 
@@ -1200,6 +1517,9 @@ static inline int soft_reset(const struct device *dev)
 
 	/* Re-config after reset */
 	dwc2_core_init_gahbcfg(dev);
+
+	/* The reset restores some registers that the vendor glue configures */
+	(void)uhc_dwc2_quirk_post_reset(dev);
 
 	/* Enable Global IRQ */
 	config->irq_enable_func(dev);
@@ -1246,6 +1566,8 @@ static int ch_claim(const struct device *const dev,
 
 	ch->error_count = 0U;
 	ch->hcint_cplt_pending = 0U;
+	ch->slave_halting = false;
+	ch->pio_tx_active = false;
 
 	/* Save channel characteristics of the underlying channel */
 	ch->xfer = xfer;
@@ -1269,6 +1591,7 @@ static int ch_claim(const struct device *const dev,
 
 static int ch_configure(const struct device *const dev, struct uhc_dwc2_channel *const ch)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
 	struct uhc_transfer *const xfer = ch->xfer;
 	struct usb_device *const udev = xfer->udev;
@@ -1291,6 +1614,10 @@ static int ch_configure(const struct device *const dev, struct uhc_dwc2_channel 
 	/* Enable error interrupts */
 	hcintmsk |= USB_DWC2_HCINT_ERRORS;
 	hcintmsk |= USB_DWC2_HCINT_STALL;
+	if (priv->slave) {
+		/* The core does not retry NAKs in slave mode, the driver has to */
+		hcintmsk |= USB_DWC2_HCINT_NAK;
+	}
 	sys_write32(hcintmsk, (mem_addr_t)&ch->regs->hcintmsk);
 
 	/* Configure the channel main properties */
@@ -1315,20 +1642,18 @@ static int ch_configure(const struct device *const dev, struct uhc_dwc2_channel 
 
 static void ch_complete_data(const struct device *dev, struct uhc_dwc2_channel *const ch)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	struct uhc_transfer *const xfer = ch->xfer;
 	uint32_t actual_len = ch->length;
 	uint32_t pkt_cnt;
-	uint32_t hctsiz;
-	uint32_t remaining;
 
 	/* Add net buffer after IN stage */
 	if (USB_EP_DIR_IS_IN(xfer->ep)) {
-		hctsiz = sys_read32((mem_addr_t)&ch->regs->hctsiz);
-		remaining = usb_dwc2_get_hctsiz_xfersize(hctsiz);
-
 		/* Device may send a short packet, use the actual length */
-		actual_len = ch->length - remaining;
-		sys_cache_data_invd_range(net_buf_tail(xfer->buf), actual_len);
+		actual_len = ch_actual_len(dev, ch);
+		if (!priv->slave) {
+			sys_cache_data_invd_range(net_buf_tail(xfer->buf), actual_len);
+		}
 		net_buf_add(xfer->buf, actual_len);
 	}
 
@@ -1373,6 +1698,8 @@ static void ch_release(const struct device *dev, struct uhc_dwc2_channel *const 
 
 	/* Release channel */
 	ch->xfer = NULL;
+	ch->pio_tx_active = false;
+	ch->slave_halting = false;
 
 	ch->data->scheduled_frame = 0;
 	ch->data->periodic_started = false;
@@ -1400,6 +1727,8 @@ static bool ch_halt_initiate(struct uhc_dwc2_channel *const ch)
 	if (ch->halt_cancel) {
 		return true;
 	}
+
+	ch->pio_tx_active = false;
 
 	/*
 	 * Leave only Channel Halted enabled and clear any other pending
@@ -1451,10 +1780,7 @@ static void ch_start_control(const struct device *dev,
 
 	dma_addr = (mem_addr_t)(xfer->setup_pkt);
 	sys_cache_data_flush_range((void *)dma_addr, sizeof(struct usb_setup_packet));
-	uhc_dwc2_quirk_dma_addr_xlate(dev, &dma_addr);
-
-	sys_write32(hctsiz, (mem_addr_t)&ch->regs->hctsiz);
-	sys_write32((uint32_t)dma_addr, (mem_addr_t)&ch->regs->hcdma);
+	ch_program(dev, ch, hctsiz, (void *)dma_addr, sizeof(struct usb_setup_packet), false);
 
 	/* TODO: Do Split */
 
@@ -1466,6 +1792,8 @@ static void ch_start_control(const struct device *dev,
 	hcchar |= USB_DWC2_HCCHAR_CHENA;
 	hcchar &= ~USB_DWC2_HCCHAR_CHDIS;
 	sys_write32(hcchar, (mem_addr_t)&ch->regs->hcchar);
+
+	ch_kick(dev, ch);
 }
 
 static void ch_start_bulk(const struct device *dev,
@@ -1499,23 +1827,15 @@ static void ch_start_bulk(const struct device *dev,
 		usb_dwc2_set_hctsiz_pktcnt(pkt_cnt) |
 		usb_dwc2_set_hctsiz_xfersize(ch->length);
 
-	if (ch->length > 0) {
-		if (USB_EP_DIR_IS_IN(xfer->ep)) {
-			sys_cache_data_invd_range((void *)dma_addr, ch->length);
-		} else {
-			sys_cache_data_flush_range((void *)dma_addr, ch->length);
-		}
-	}
-
-	uhc_dwc2_quirk_dma_addr_xlate(dev, &dma_addr);
-	sys_write32(hctsiz, (mem_addr_t)&ch->regs->hctsiz);
-	sys_write32((uint32_t)dma_addr, (mem_addr_t)&ch->regs->hcdma);
+	ch_program(dev, ch, hctsiz, (void *)dma_addr, ch->length, USB_EP_DIR_IS_IN(xfer->ep));
 
 	/* Start transfer */
 	hcchar = sys_read32((mem_addr_t)&ch->regs->hcchar);
 	hcchar |= USB_DWC2_HCCHAR_CHENA;
 	hcchar &= ~USB_DWC2_HCCHAR_CHDIS;
 	sys_write32(hcchar, (mem_addr_t)&ch->regs->hcchar);
+
+	ch_kick(dev, ch);
 }
 
 static void ch_schedule_interrupt(const struct device *dev,
@@ -1583,17 +1903,7 @@ static void ch_start_interrupt(const struct device *dev,
 		 usb_dwc2_set_hctsiz_pktcnt(pkt_cnt) |
 		 usb_dwc2_set_hctsiz_xfersize(ch->length);
 
-	if (ch->length > 0) {
-		if (USB_EP_DIR_IS_IN(xfer->ep)) {
-			sys_cache_data_invd_range((void *)dma_addr, ch->length);
-		} else {
-			sys_cache_data_flush_range((void *)dma_addr, ch->length);
-		}
-	}
-
-	uhc_dwc2_quirk_dma_addr_xlate(dev, &dma_addr);
-	sys_write32(hctsiz, (mem_addr_t)&ch->regs->hctsiz);
-	sys_write32((uint32_t)dma_addr, (mem_addr_t)&ch->regs->hcdma);
+	ch_program(dev, ch, hctsiz, (void *)dma_addr, ch->length, USB_EP_DIR_IS_IN(xfer->ep));
 
 	hfnum = sys_read32((mem_addr_t)&base->hfnum);
 	frame = usb_dwc2_get_hfnum_frnum(hfnum);
@@ -1621,10 +1931,17 @@ static void ch_start_interrupt(const struct device *dev,
 static void ch_reinit(const struct device *dev,
 		      struct uhc_dwc2_channel *const ch)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	uint32_t hcchar;
 
 	/* Clear old channel interrupts before re-enabling. */
 	sys_write32(0xFFFFFFFFU, (mem_addr_t)&ch->regs->hcint);
+
+	/* Slave mode continues from the packet that did not complete */
+	if (priv->slave && ch->xfer->type != USB_EP_TYPE_INTERRUPT) {
+		ch_pio_resume(dev, ch);
+		return;
+	}
 
 	/* TODO: check, if it might be a good this to do anything before the re-init */
 
@@ -2030,7 +2347,9 @@ static void port_handle_events(const struct device *dev, uint32_t event_mask)
 {
 	struct usb_dwc2_reg *const base = uhc_dwc2_get_base(dev);
 
-	LOG_DBG("Port events: %08Xh", event_mask);
+	if (event_mask != BIT(UHC_DWC2_EVENT_SOF)) {
+		LOG_DBG("Port events: %08Xh", event_mask);
+	}
 
 	if (event_mask & BIT(UHC_DWC2_EVENT_PORT_CONNECTION)) {
 		/* Port connected */
@@ -2103,6 +2422,7 @@ static void port_handle_events(const struct device *dev, uint32_t event_mask)
 
 static void ch_handle_events(const struct device *dev, struct uhc_dwc2_channel *ch)
 {
+	struct uhc_dwc2_data *const priv = uhc_get_private(dev);
 	uint32_t events = (uint32_t)atomic_set(&ch->events, 0);
 	struct uhc_transfer *const xfer = ch->xfer;
 	int err = -EIO;
@@ -2137,12 +2457,23 @@ static void ch_handle_events(const struct device *dev, struct uhc_dwc2_channel *
 		uhc_xfer_return(dev, xfer, err);
 	} else {
 		/* Reinit/rewind transfer */
-		if (events & BIT(UHC_DWC2_CHANNEL_DO_REWIND)) {
+		if ((events & BIT(UHC_DWC2_CHANNEL_DO_REWIND)) && !priv->slave) {
 			/* TODO: Implement rewind xfer */
 			LOG_WRN("DO_REWIND not implemented yet");
 		}
 
 		if (events & BIT(UHC_DWC2_CHANNEL_DO_REINIT)) {
+			if (priv->slave && xfer->type != USB_EP_TYPE_INTERRUPT) {
+				/* Do not poll again before the next frame */
+				uhc_unlock_internal(dev);
+				k_msleep(1);
+				uhc_lock_internal(dev, K_FOREVER);
+
+				if (ch->xfer != xfer) {
+					return;
+				}
+			}
+
 			ch_reinit(dev, ch);
 		}
 
@@ -2165,7 +2496,23 @@ static void uhc_dwc2_isr_handler(const struct device *dev)
 	gintsts = sys_read32((mem_addr_t)&base->gintsts);
 	sys_write32(gintsts, (mem_addr_t)&base->gintsts);
 
-	LOG_DBG("GINTSTS=0x%08X", gintsts);
+	/* Skip the always-asserted status bits and the 1 kHz SOF to keep the log readable */
+	if (gintsts & ~(USB_DWC2_GINTSTS_SOF | USB_DWC2_GINTSTS_NPTXFEMP | BIT(26) | BIT(0))) {
+		LOG_DBG("GINTSTS=0x%08X", gintsts);
+	}
+
+	/* Slave mode: move data through the FIFOs before looking at channel events */
+	if (priv->slave) {
+		if (gintsts & USB_DWC2_GINTSTS_RXFLVL) {
+			pio_rx_service(dev);
+		}
+
+		/* The status bit is always set when the FIFO is empty, check the mask too */
+		if ((gintsts & USB_DWC2_GINTSTS_NPTXFEMP) &&
+		    (sys_read32((mem_addr_t)&base->gintmsk) & USB_DWC2_GINTSTS_NPTXFEMP)) {
+			pio_tx_service(dev);
+		}
+	}
 
 	/* Handle disconnect first */
 	if (gintsts & USB_DWC2_GINTSTS_DISCONNINT) {
