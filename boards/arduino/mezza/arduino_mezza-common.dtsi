@@ -193,7 +193,11 @@ zephyr_udc0: &usbotg_hs {
 	status = "okay";
 };
 
-zephyr_udc1: &usbotg_fs {
+zephyr_uhc0: &usbotg_fs {
+	compatible = "st,stm32-otgfs-uhc", "snps,dwc2";
+	/* Host mode has no SOF to trim HSI48 with, use 48 MHz derived from the HSE */
+	clocks = <&rcc STM32_CLOCK(AHB2, 15)>,
+		 <&rcc STM32_SRC_PLL3_Q OTGFS_SEL(2)>;
 	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
 	pinctrl-names = "default";
 	status = "okay";
@@ -262,9 +266,9 @@ zephyr_udc1: &usbotg_fs {
 
 &pll3 {
 	div-m = <6>;
-	mul-n = <32>;
+	mul-n = <36>;
 	div-p = <2>;
-	div-q = <4>;
+	div-q = <6>;
 	div-r = <2>;
 	clocks = <&clk_hse>;
 	status = "okay";
