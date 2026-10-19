@@ -25,6 +25,13 @@ config HWINFO_SHELL
 	help
 	  Enable hwinfo Shell for testing.
 
+config HWINFO_ARDUINO_LEGACY_ID
+	bool "Arduino legacy device ID byte order"
+	help
+	  Return hwinfo_get_device_id() in the byte order used by Arduino
+	  bootloaders and mbed-based cores, so the USB serial number stays
+	  the same across bootloader and application.
+
 # zephyr-keep-sorted-start
 rsource "Kconfig.ambiq"
 rsource "Kconfig.andes"
