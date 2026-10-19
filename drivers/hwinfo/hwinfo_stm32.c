@@ -26,6 +26,13 @@
 #define STM32_UID_WORD_2 HAL_GetUIDw0()
 /* zephyr-keep-sorted-stop */
 
+#elif defined(CONFIG_HWINFO_ARDUINO_LEGACY_ID)
+
+/* Arduino legacy order, matches bootloader and mbed-based cores */
+#define STM32_UID_WORD_0 LL_GetUID_Word0()
+#define STM32_UID_WORD_1 LL_GetUID_Word1()
+#define STM32_UID_WORD_2 LL_GetUID_Word2()
+
 #else
 
 /* zephyr-keep-sorted-start */

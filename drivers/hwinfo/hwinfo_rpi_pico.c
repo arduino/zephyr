@@ -7,11 +7,11 @@
 
 #include <string.h>
 #include <zephyr/drivers/hwinfo.h>
+#include <zephyr/sys/byteorder.h>
 #include <hardware/flash.h>
 #if defined(CONFIG_SOC_SERIES_RP2040)
 #include <hardware/structs/vreg_and_chip_reset.h>
 #else
-#include <zephyr/sys/byteorder.h>
 #include <pico/bootrom.h>
 #include <hardware/structs/powman.h>
 #endif
@@ -56,6 +56,13 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 	key = irq_lock();
 	flash_get_unique_id(id);
 	irq_unlock(key);
+
+#if defined(CONFIG_HWINFO_ARDUINO_LEGACY_ID)
+	/* Arduino legacy order: each 32-bit word byte-reversed */
+	for (size_t i = 0; i < sizeof(id); i += sizeof(uint32_t)) {
+		sys_put_be32(sys_get_le32(&id[i]), &id[i]);
+	}
+#endif /* CONFIG_HWINFO_ARDUINO_LEGACY_ID */
 #endif /* defined(CONFIG_SOC_SERIES_RP2350) */
 
 	if (length > sizeof(id)) {
