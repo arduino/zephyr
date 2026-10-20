@@ -72,3 +72,4 @@ properties:
     enum:
       - 16
       - 24
+      - 32
