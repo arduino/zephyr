@@ -8,6 +8,11 @@
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/clock/mchp_pic32ck_sg_gc_clock.h>
 
+/* EIC alias the CPU uses; SG parts override it with the secure one (pic32ck_sg.dtsi). */
+#ifndef PIC32CK_EIC_ADDR
+#define PIC32CK_EIC_ADDR 4401a000
+#endif
+
 / {
 	cpus {
 		#address-cells = <1>;
@@ -167,9 +172,9 @@
 			status = "disabled";
 		};
 
-		eic: interrupt-controller@4401a000 {
+		eic: interrupt-controller@PIC32CK_EIC_ADDR {
 			compatible = "microchip,eic-g1-intc";
-			reg = <0x4401a000 0x2000>;
+			reg = <DT_ADDR(PIC32CK_EIC_ADDR) 0x1000>;
 			interrupts = <13 0>, <14 0>, <15 0>, <16 0>,
 				     <17 0>, <18 0>, <19 0>, <20 0>,
 				     <21 0>, <22 0>, <23 0>, <24 0>,
