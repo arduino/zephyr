@@ -7,6 +7,7 @@
 / {
 	soc {
 		pinctrl: pinctrl@44800000 {
+			reg = <0x44800000 0x200>;
 			ranges = <0x0 0x44800000 0x200>;
 		};
 	};
