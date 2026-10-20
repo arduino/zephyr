@@ -16,6 +16,8 @@
 	aliases {
 		led0 = &led_builtin;
 		watchdog0 = &wdt;
+		/* On while MCUboot waits in USB DFU (CONFIG_MCUBOOT_INDICATION_LED). */
+		mcuboot-led0 = &led_builtin;
 	};
 
 	leds {
