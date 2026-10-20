@@ -1,0 +1,21 @@
+/*
+ * Copyright (c) 2026 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <microchip/pic32c/pic32ck_sg_gc/pic32ck_sg01/pic32ck2051sg01144.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/adc/adc.h>
+#include <dt-bindings/adc/mchp_pic32ck_gc_adc.h>
+#include "arduino_nano_xl_link-pinctrl.dtsi"
+#include "arduino_nano_xl_link-common.dtsi"
+
+/ {
+	model = "Arduino Nano XL Link";
+	compatible = "arduino,nano-xl-link", "microchip,pic32ck2051sg01144";
+};
