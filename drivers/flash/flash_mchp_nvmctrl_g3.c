@@ -21,18 +21,20 @@ LOG_MODULE_REGISTER(flash_mchp_nvmctrl_g3, CONFIG_FLASH_LOG_LEVEL);
 #define SOC_NV_FLASH_COMPAT(node_id)                                                               \
 	COND_CODE_1(DT_NODE_HAS_COMPAT(node_id, soc_nv_flash), (node_id), ())
 
+/* The single soc-nv-flash child of controller n, or empty if it has none */
 #define SOC_NV_FLASH_NODE(n)                                                                       \
 	DT_INST_FOREACH_CHILD_STATUS_OKAY(n, SOC_NV_FLASH_COMPAT)
-#define SOC_NV_FLASH_BASE_ADDR(n)            DT_REG_ADDR(SOC_NV_FLASH_NODE(n))
-#define SOC_NV_FLASH_SIZE(n)                 DT_REG_SIZE(SOC_NV_FLASH_NODE(n))
-#define SOC_NV_FLASH_WRITE_BLOCK_SIZE(n)     DT_PROP(SOC_NV_FLASH_NODE(n), write_block_size)
-#define SOC_NV_FLASH_WRITE_BLOCK_SIZE_QDW(n) DT_PROP(SOC_NV_FLASH_NODE(n), write_block_size_quad_dw)
-#define SOC_NV_FLASH_WRITE_BLOCK_SIZE_ROW(n) DT_PROP(SOC_NV_FLASH_NODE(n), write_block_size_row)
-#define SOC_NV_FLASH_ERASE_BLOCK_SIZE(n)     DT_PROP(SOC_NV_FLASH_NODE(n), erase_block_size)
 
-#define SOC_NV_FLASH_UNIMPLEMENTED_REGION_COUNT(n)                                                 \
-	DT_PROP_LEN(SOC_NV_FLASH_NODE(n), unimplemented_region) / 2
-#define SOC_NV_FLASH_UNIMPLEMENTED_REGIONS(n) DT_PROP(SOC_NV_FLASH_NODE(n), unimplemented_region)
+#define FLASH_BANK_BASE_ADDR(node)            DT_REG_ADDR(node)
+#define FLASH_BANK_SIZE(node)                 DT_REG_SIZE(node)
+#define FLASH_BANK_WRITE_BLOCK_SIZE(node)     DT_PROP(node, write_block_size)
+#define FLASH_BANK_WRITE_BLOCK_SIZE_QDW(node) DT_PROP(node, write_block_size_quad_dw)
+#define FLASH_BANK_WRITE_BLOCK_SIZE_ROW(node) DT_PROP(node, write_block_size_row)
+#define FLASH_BANK_ERASE_BLOCK_SIZE(node)     DT_PROP(node, erase_block_size)
+
+#define FLASH_BANK_UNIMPLEMENTED_REGION_COUNT(node)                                                \
+	COND_CODE_1(DT_NODE_HAS_PROP(node, unimplemented_region),                                  \
+		    (DT_PROP_LEN(node, unimplemented_region) / 2), (0))
 
 /*
  * Optional APB clocks: PIC32CK SG/GC and PIC32CZ CA have dedicated FCW and FCR
@@ -75,9 +77,17 @@ struct flash_mchp_g3_clock {
 	clock_control_subsys_t mclk_apb; /* APB clock control subsystem */
 };
 
+struct nvmctrl_data {
+	struct k_sem fcw_sem_lock;  /* Semaphore used for locking mechanism */
+	struct k_sem done_flag_sem; /* Semaphore used for synching flash write done */
+	uint32_t interrupt_status;  /* Flash controller interrupt status flags */
+};
+
+/* Flash controller (NVMCTRL) configuration, shared by all banks it drives */
 struct nvmctrl_config {
-	const struct device *clock_dev;                    /* Clock driver device */
-	void (*irq_config_func)(const struct device *dev); /* IRQ Function ptr */
+	const struct device *clock_dev;                     /* Clock driver device */
+	void (*irq_config_func)(const struct nvmctrl_config *config); /* IRQ Function ptr */
+	struct nvmctrl_data *data;                          /* Controller run-time state */
 	struct fcw_config {
 		fcw_registers_t *regs;            /* Pointer to Flash peripheral registers */
 		struct flash_mchp_g3_clock clock; /* Flash clock control configuration */
@@ -87,7 +97,16 @@ struct nvmctrl_config {
 		fcr_registers_t *regs;            /* Pointer to Flash peripheral registers */
 		struct flash_mchp_g3_clock clock; /* Flash clock control configuration */
 	} fcr;
+};
 
+/*
+ * Flash bank configuration. A controller with a single soc-nv-flash child
+ * exposes that bank as the controller device itself; a controller with
+ * several microchip,flash-g3 children (PIC32CK: BFM and PFM) exposes each of
+ * them as its own flash device, all sharing the controller.
+ */
+struct flash_mchp_g3_bank_config {
+	const struct nvmctrl_config *nvmctrl;
 	struct flash_parameters parameters;
 #if CONFIG_FLASH_PAGE_LAYOUT
 	struct flash_pages_layout page_layout;
@@ -99,13 +118,7 @@ struct nvmctrl_config {
 	uint32_t write_block_size_row;
 	uint32_t erase_block_size;
 	uint32_t unimplemented_region_count;
-	uint32_t *unimplemented_regions;
-};
-
-struct nvmctrl_data {
-	struct k_sem fcw_sem_lock;  /* Semaphore used for locking mechanism */
-	struct k_sem done_flag_sem; /* Semaphore used for synching flash write done */
-	uint32_t interrupt_status;  /* Flash controller interrupt status flags */
+	const uint32_t *unimplemented_regions;
 };
 
 static inline void fcw_ready_wait(fcw_registers_t *regs)
@@ -184,7 +197,8 @@ static uint32_t get_fcw_interrupt_status_flags(fcw_registers_t *fcw_regs)
 	return fcw_status;
 }
 
-static int validate_flash_parameters(const struct nvmctrl_config *const config, off_t offset,
+static int validate_flash_parameters(const struct flash_mchp_g3_bank_config *const config,
+				     off_t offset,
 				     size_t size, enum flash_operation op)
 {
 	if ((offset < 0) || (offset > config->size) || (size > config->size) ||
@@ -340,8 +354,8 @@ static int exec_flash_operation(fcw_registers_t *regs, struct nvmctrl_data *nvmc
 static int flash_mchp_read(const struct device *dev, off_t offset, void *data_buff,
 			   size_t no_of_bytes)
 {
-	const struct nvmctrl_config *const config = dev->config;
-	struct nvmctrl_data *data = dev->data;
+	const struct flash_mchp_g3_bank_config *const config = dev->config;
+	struct nvmctrl_data *data = config->nvmctrl->data;
 	int ret = validate_flash_parameters(config, offset, no_of_bytes, OPERATION_READ);
 
 	if (ret != 0) {
@@ -382,9 +396,9 @@ static uint8_t __aligned(FLASH_MCHP_G3_ROW_BUF_SIZE) row_bounce_buf[FLASH_MCHP_G
 static int flash_mchp_write(const struct device *dev, off_t offset, const void *data_buff,
 			    size_t no_of_bytes)
 {
-	const struct nvmctrl_config *const config = dev->config;
-	struct nvmctrl_data *data = dev->data;
-	fcw_registers_t *regs = config->fcw.regs;
+	const struct flash_mchp_g3_bank_config *const config = dev->config;
+	struct nvmctrl_data *data = config->nvmctrl->data;
+	fcw_registers_t *regs = config->nvmctrl->fcw.regs;
 	int nvm_error = -EIO;
 	const uint8_t *src_data_buff_read_ptr = (const uint8_t *)data_buff;
 	uint32_t word;
@@ -482,9 +496,9 @@ static int flash_mchp_write(const struct device *dev, off_t offset, const void *
 
 static int flash_mchp_erase(const struct device *dev, off_t offset, size_t no_of_bytes)
 {
-	const struct nvmctrl_config *const config = dev->config;
-	struct nvmctrl_data *data = dev->data;
-	fcw_registers_t *regs = config->fcw.regs;
+	const struct flash_mchp_g3_bank_config *const config = dev->config;
+	struct nvmctrl_data *data = config->nvmctrl->data;
+	fcw_registers_t *regs = config->nvmctrl->fcw.regs;
 	int nvm_error = -EIO;
 
 	if (no_of_bytes == 0) {
@@ -520,9 +534,9 @@ static int flash_mchp_ex_op(const struct device *dev, uint16_t opr_code, const u
 			    void *out)
 {
 	ARG_UNUSED(out);
-	const struct nvmctrl_config *const config = dev->config;
-	struct nvmctrl_data *data = dev->data;
-	fcw_registers_t *regs = config->fcw.regs;
+	const struct flash_mchp_g3_bank_config *const config = dev->config;
+	struct nvmctrl_data *data = config->nvmctrl->data;
+	fcw_registers_t *regs = config->nvmctrl->fcw.regs;
 	struct pfm_exop *pfm_exop_data;
 	struct bfm_exop *bfm_exop_data;
 	uint8_t region;
@@ -606,10 +620,9 @@ static int flash_mchp_ex_op(const struct device *dev, uint16_t opr_code, const u
 }
 #endif /* CONFIG_FLASH_EX_OP_ENABLED */
 
-static void nvmctrl_isr(const struct device *nvmctrl_dev)
+static void nvmctrl_isr(const struct nvmctrl_config *const config)
 {
-	const struct nvmctrl_config *const config = nvmctrl_dev->config;
-	struct nvmctrl_data *data = nvmctrl_dev->data;
+	struct nvmctrl_data *data = config->data;
 
 	data->interrupt_status = get_fcw_interrupt_status_flags(config->fcw.regs);
 	clear_fcw_error_status(config->fcw.regs, data->interrupt_status);
@@ -619,10 +632,9 @@ static void nvmctrl_isr(const struct device *nvmctrl_dev)
 	}
 }
 
-static int nvmctrl_init(const struct device *nvmctrl_dev)
+static int nvmctrl_init(const struct nvmctrl_config *const config)
 {
-	const struct nvmctrl_config *const config = nvmctrl_dev->config;
-	struct nvmctrl_data *data = nvmctrl_dev->data;
+	struct nvmctrl_data *data = config->data;
 	int nvm_err;
 
 	nvm_err = clock_control_on(config->clock_dev, config->fcw.clock.mclk_ahb);
@@ -659,7 +671,7 @@ static int nvmctrl_init(const struct device *nvmctrl_dev)
 	k_sem_init(&data->done_flag_sem, 0, 1);
 	fcw_ready_wait(config->fcw.regs);
 	fcr_ready_wait(config->fcr.regs);
-	config->irq_config_func(nvmctrl_dev);
+	config->irq_config_func(config);
 	enable_fcw_interrupts(config->fcw.regs);
 	disable_fcr_interrupts(config->fcr.regs);
 	clear_fcw_error_status(config->fcw.regs, FCW_INTFLAG_Msk);
@@ -675,18 +687,18 @@ static int nvmctrl_init(const struct device *nvmctrl_dev)
 }
 
 #if CONFIG_FLASH_PAGE_LAYOUT
-#define FLASH_MCHP_G3_CONFIG_PAGE_LAYOUT(n)                                                        \
-	.page_layout.pages_count = SOC_NV_FLASH_SIZE(n) / SOC_NV_FLASH_ERASE_BLOCK_SIZE(n),        \
-	.page_layout.pages_size = SOC_NV_FLASH_ERASE_BLOCK_SIZE(n),
+#define FLASH_MCHP_G3_CONFIG_PAGE_LAYOUT(node)                                                     \
+	.page_layout.pages_count = FLASH_BANK_SIZE(node) / FLASH_BANK_ERASE_BLOCK_SIZE(node),      \
+	.page_layout.pages_size = FLASH_BANK_ERASE_BLOCK_SIZE(node),
 #else
-#define FLASH_MCHP_G3_CONFIG_PAGE_LAYOUT(n)
+#define FLASH_MCHP_G3_CONFIG_PAGE_LAYOUT(node)
 #endif /* CONFIG_FLASH_PAGE_LAYOUT */
 
 #if CONFIG_FLASH_PAGE_LAYOUT
 void flash_mchp_page_layout(const struct device *dev, const struct flash_pages_layout **layout,
 			    size_t *layout_size)
 {
-	const struct nvmctrl_config *const config = dev->config;
+	const struct flash_mchp_g3_bank_config *const config = dev->config;
 
 	*layout = &config->page_layout;
 	*layout_size = 1;
@@ -695,7 +707,7 @@ void flash_mchp_page_layout(const struct device *dev, const struct flash_pages_l
 
 static const struct flash_parameters *flash_mchp_get_parameters(const struct device *dev)
 {
-	const struct nvmctrl_config *const config = dev->config;
+	const struct flash_mchp_g3_bank_config *const config = dev->config;
 
 	return &config->parameters;
 }
@@ -713,22 +725,93 @@ static DEVICE_API(flash, flash_mchp_g3_driver_api) = {
 #endif /*CONFIG_FLASH_EX_OP_ENABLED*/
 };
 
+static int __maybe_unused nvmctrl_bank_dev_init(const struct device *dev)
+{
+	const struct flash_mchp_g3_bank_config *const config = dev->config;
+
+	return nvmctrl_init(config->nvmctrl);
+}
+
+static int __maybe_unused nvmctrl_ctrl_dev_init(const struct device *dev)
+{
+	return nvmctrl_init(dev->config);
+}
+
+#define NVMCTRL_CONFIG_NAME(ctrl_node) _CONCAT(nvmctrl_g3_config_, DT_DEP_ORD(ctrl_node))
+
+/* Flash bank configuration for the flash node 'node' of controller 'ctrl_node' */
+#define FLASH_MCHP_G3_BANK_CONFIG_DEFINE(node, ctrl_node)                                          \
+	BUILD_ASSERT(FLASH_BANK_WRITE_BLOCK_SIZE_ROW(node) <= FLASH_MCHP_G3_ROW_BUF_SIZE,          \
+		     "row size exceeds the row bounce buffer");                                 \
+                                                                                                   \
+	IF_ENABLED(DT_NODE_HAS_PROP(node, unimplemented_region),                                   \
+		   (static const uint32_t _CONCAT(dt_unimplemented_regions_, DT_DEP_ORD(node))[] = \
+			    DT_PROP(node, unimplemented_region);))                                 \
+                                                                                                   \
+	static const struct flash_mchp_g3_bank_config _CONCAT(flash_mchp_g3_bank_,                 \
+							      DT_DEP_ORD(node)) = {                \
+		.nvmctrl = &NVMCTRL_CONFIG_NAME(ctrl_node),                                        \
+		.parameters =                                                                      \
+			{                                                                          \
+				.write_block_size = FLASH_BANK_WRITE_BLOCK_SIZE(node),             \
+				.erase_value = 0xff,                                               \
+			},                                                                         \
+		.base_addr = FLASH_BANK_BASE_ADDR(node),                                           \
+		.size = FLASH_BANK_SIZE(node),                                                     \
+		.write_block_size = FLASH_BANK_WRITE_BLOCK_SIZE(node),                             \
+		.erase_block_size = FLASH_BANK_ERASE_BLOCK_SIZE(node),                             \
+		.write_block_size_qdw = FLASH_BANK_WRITE_BLOCK_SIZE_QDW(node),                     \
+		.write_block_size_row = FLASH_BANK_WRITE_BLOCK_SIZE_ROW(node),                     \
+		.unimplemented_region_count = FLASH_BANK_UNIMPLEMENTED_REGION_COUNT(node),         \
+		.unimplemented_regions = COND_CODE_1(DT_NODE_HAS_PROP(node, unimplemented_region), \
+			(_CONCAT(dt_unimplemented_regions_, DT_DEP_ORD(node))), (NULL)),           \
+		FLASH_MCHP_G3_CONFIG_PAGE_LAYOUT(node)};
+
+/* A microchip,flash-g3 child that is not soc-nv-flash is a flash device of its own */
+#define FLASH_MCHP_G3_BANK_DEVICE_DEFINE(node)                                                     \
+	FLASH_MCHP_G3_BANK_CONFIG_DEFINE(node, DT_PARENT(node))                                    \
+	DEVICE_DT_DEFINE(node, NULL, NULL, NULL, &_CONCAT(flash_mchp_g3_bank_, DT_DEP_ORD(node)),  \
+			 POST_KERNEL, CONFIG_FLASH_INIT_PRIORITY, &flash_mchp_g3_driver_api);
+
+#define FLASH_MCHP_G3_CHILD_BANK(node)                                                             \
+	COND_CODE_1(UTIL_AND(DT_NODE_HAS_COMPAT(node, microchip_flash_g3),                         \
+			     UTIL_NOT(DT_NODE_HAS_COMPAT(node, soc_nv_flash))),                    \
+		    (FLASH_MCHP_G3_BANK_DEVICE_DEFINE(node)), ())
+
+/* Single soc-nv-flash child: the controller device is the flash device */
+#define MCHP_NVMCTRL_G3_SINGLE_BANK(n)                                                             \
+	FLASH_MCHP_G3_BANK_CONFIG_DEFINE(SOC_NV_FLASH_NODE(n), DT_DRV_INST(n))                     \
+	DEVICE_DT_INST_DEFINE(n, nvmctrl_bank_dev_init, NULL, &nvmctrl_g3_data##n,                 \
+			      &_CONCAT(flash_mchp_g3_bank_, DT_DEP_ORD(SOC_NV_FLASH_NODE(n))),     \
+			      POST_KERNEL, CONFIG_FLASH_INIT_PRIORITY, &flash_mchp_g3_driver_api);
+
+/*
+ * Several microchip,flash-g3 children: the controller is set up first and
+ * each child bank is a flash device of its own. The banks have no init of
+ * their own and are only used after the controller has initialized.
+ */
+#define MCHP_NVMCTRL_G3_MULTI_BANK(n)                                                              \
+	DEVICE_DT_INST_DEFINE(n, nvmctrl_ctrl_dev_init, NULL, &nvmctrl_g3_data##n,                 \
+			      &NVMCTRL_CONFIG_NAME(DT_DRV_INST(n)), POST_KERNEL,                 \
+			      CONFIG_FLASH_INIT_PRIORITY, NULL);                                    \
+	DT_INST_FOREACH_CHILD_STATUS_OKAY(n, FLASH_MCHP_G3_CHILD_BANK)
+
 #define MCHP_NVMCTRL_G3_INIT(n)                                                                    \
-	static void nvmctrl_g3_irq_config##n(const struct device *dev);                            \
-	static void nvmctrl_g3_irq_config##n(const struct device *dev)                             \
+	static const struct nvmctrl_config NVMCTRL_CONFIG_NAME(DT_DRV_INST(n));                    \
+	static void nvmctrl_g3_irq_config##n(const struct nvmctrl_config *config)                  \
 	{                                                                                          \
 		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(n, fcw, irq),                                      \
 			    DT_INST_IRQ_BY_NAME(n, fcw, priority), nvmctrl_isr,                    \
-			    DEVICE_DT_INST_GET(n), 0);                                             \
+			    &NVMCTRL_CONFIG_NAME(DT_DRV_INST(n)), 0);                              \
 		irq_enable(DT_INST_IRQ_BY_NAME(n, fcw, irq));                                      \
 	}                                                                                          \
                                                                                                    \
-	static uint32_t dt_unimplemented_regions##n[] = SOC_NV_FLASH_UNIMPLEMENTED_REGIONS(n);     \
 	static struct nvmctrl_data nvmctrl_g3_data##n;                                             \
                                                                                                    \
-	static const struct nvmctrl_config nvmctrl_g3_config##n = {                                \
+	static const struct nvmctrl_config NVMCTRL_CONFIG_NAME(DT_DRV_INST(n)) = {                 \
 		.clock_dev = DEVICE_DT_GET(DT_INST_PHANDLE(n, clock_parent)),                      \
 		.irq_config_func = nvmctrl_g3_irq_config##n,                                       \
+		.data = &nvmctrl_g3_data##n,                                                       \
                                                                                                    \
 		.fcw.regs = (fcw_registers_t *)DT_INST_REG_ADDR_BY_NAME(n, fcw),                   \
 		.fcw.clock.mclk_ahb =                                                              \
@@ -745,26 +828,9 @@ static DEVICE_API(flash, flash_mchp_g3_driver_api) = {
 			(.fcr.clock.mclk_apb =                                                     \
 				(void *)(DT_INST_CLOCKS_CELL_BY_NAME(n, mclk_fcr_apb,              \
 								     subsystem)),))         \
+	};                                                                                         \
                                                                                                    \
-		.parameters =                                                                      \
-			{                                                                          \
-				.write_block_size = SOC_NV_FLASH_WRITE_BLOCK_SIZE(n),              \
-				.erase_value = 0xff,                                               \
-			},                                                                         \
-		.base_addr = SOC_NV_FLASH_BASE_ADDR(n),                                            \
-		.size = SOC_NV_FLASH_SIZE(n),                                                      \
-		.write_block_size = SOC_NV_FLASH_WRITE_BLOCK_SIZE(n),                              \
-		.erase_block_size = SOC_NV_FLASH_ERASE_BLOCK_SIZE(n),                              \
-		.write_block_size_qdw = SOC_NV_FLASH_WRITE_BLOCK_SIZE_QDW(n),                      \
-		.write_block_size_row = SOC_NV_FLASH_WRITE_BLOCK_SIZE_ROW(n),                      \
-		.unimplemented_region_count = SOC_NV_FLASH_UNIMPLEMENTED_REGION_COUNT(n),          \
-		.unimplemented_regions = dt_unimplemented_regions##n,                              \
-		FLASH_MCHP_G3_CONFIG_PAGE_LAYOUT(n)};                                              \
-                                                                                                   \
-	BUILD_ASSERT(SOC_NV_FLASH_WRITE_BLOCK_SIZE_ROW(n) <= FLASH_MCHP_G3_ROW_BUF_SIZE,           \
-		     "row size exceeds the row bounce buffer");                                 \
-                                                                                                   \
-	DEVICE_DT_INST_DEFINE(n, nvmctrl_init, NULL, &nvmctrl_g3_data##n, &nvmctrl_g3_config##n,   \
-			      POST_KERNEL, CONFIG_FLASH_INIT_PRIORITY, &flash_mchp_g3_driver_api);
+	COND_CODE_1(IS_EMPTY(SOC_NV_FLASH_NODE(n)), (MCHP_NVMCTRL_G3_MULTI_BANK(n)),               \
+		    (MCHP_NVMCTRL_G3_SINGLE_BANK(n)))
 
 DT_INST_FOREACH_STATUS_OKAY(MCHP_NVMCTRL_G3_INIT)
