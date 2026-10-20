@@ -58,13 +58,12 @@
 
 &flash0 {
 	partitions {
+		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges;
 
 		boot_partition: partition@0 {
 			label = "boot_flash";
-			compatible = "zephyr,mapped-partition";
 			reg = <0x0 DT_SIZE_K(128)>;
 		};
 	};
@@ -72,19 +71,17 @@
 
 &flash1 {
 	partitions {
+		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges;
 
 		code_partition: partition@0 {
 			label = "program_flash";
-			compatible = "zephyr,mapped-partition";
 			reg = <0x0 DT_SIZE_K(2032)>;
 		};
 
 		storage_partition: partition@1fc000 {
 			label = "storage";
-			compatible = "zephyr,mapped-partition";
 			reg = <0x1fc000 DT_SIZE_K(16)>;
 		};
 	};
