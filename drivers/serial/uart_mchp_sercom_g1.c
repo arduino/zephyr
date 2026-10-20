@@ -30,6 +30,11 @@
  *****************************************************************************/
 #define DT_DRV_COMPAT microchip_sercom_g1_uart
 
+/* HALs that only name the internal-clock USART view lack the generic SWRST alias */
+#if !defined(SERCOM_USART_CTRLA_SWRST_Msk) && defined(SERCOM_USART_INT_CTRLA_SWRST_Msk)
+#define SERCOM_USART_CTRLA_SWRST_Msk SERCOM_USART_INT_CTRLA_SWRST_Msk
+#endif
+
 /******************************************************************************
  * @brief Macro definitions
  *****************************************************************************/
