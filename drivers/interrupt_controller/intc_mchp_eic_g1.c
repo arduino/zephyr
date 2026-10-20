@@ -366,7 +366,8 @@ int eic_mchp_config_interrupt(struct eic_config_params *eic_pin_config)
 	 */
 
 #if defined(CONFIG_SOC_FAMILY_MICROCHIP_PIC32CX_SG) ||                                             \
-	defined(CONFIG_SOC_FAMILY_MICROCHIP_PIC32CM_JH)
+	defined(CONFIG_SOC_FAMILY_MICROCHIP_PIC32CM_JH) ||                                         \
+	defined(CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC)
 	if (EIC_CONFIG_REG_IDX(eic_line) == 0) {
 		eic_cfg->regs->EIC_CONFIG0 &=
 			~(EIC_CONFIG_EIC_LINE_MSK << EIC_TRIG_TYPE_BIT_POS(eic_line));
@@ -387,7 +388,7 @@ int eic_mchp_config_interrupt(struct eic_config_params *eic_pin_config)
 	eic_cfg->regs->EIC_CONFIG[EIC_CONFIG_REG_IDX(eic_line)] |=
 		((eic_pin_config->trig_type) << EIC_TRIG_TYPE_BIT_POS(eic_line));
 
-#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CX_SG || CONFIG_SOC_FAMILY_MICROCHIP_PIC32CM_JH */
+#endif /* PIC32CX_SG || PIC32CM_JH || PIC32CK_SG_GC */
 
 	/* Set the debouncing feature of the eic line if required */
 	if (eic_pin_config->debounce != 0) {
