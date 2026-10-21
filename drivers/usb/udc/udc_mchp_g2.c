@@ -87,6 +87,7 @@ enum udc_mchp_g2_ep0_state {
 	EP0_STATE_IDLE = 0,  /* Waiting for SETUP packet */
 	EP0_STATE_TX,        /* Control Read: sending IN data */
 	EP0_STATE_RX,        /* Control Write: receiving OUT data */
+	EP0_STATE_STATUS_IN_PENDING, /* OUT data received; waiting for stack acceptance */
 	EP0_STATE_STATUS_IN, /* Status stage: waiting for ZLP confirmation */
 };
 
@@ -292,12 +293,11 @@ static void mchp_g2_handle_ep0_rx_done(const struct device *dev)
 	}
 
 	/*
-	 * The data stage is ACKed with DataEnd in the ISR, so the payload is
-	 * already staged even when the USB stack has not yet enqueued a buffer
+	 * The payload is already staged by the ISR even when the USB stack
+	 * has not yet enqueued a buffer
 	 * for it. That happens whenever the class handler is slow to return,
 	 * e.g. a DFU download blocking on a flash page erase. The host has
-	 * already been told the transfer succeeded, so dropping the payload
-	 * here silently loses a block. Instead put the SETUP buffer back, keep
+	 * not yet received the status ZLP. Put the SETUP buffer back, keep
 	 * the staging buffer intact and re-arm ep0_rx_done;
 	 * udc_mchp_g2_ep_enqueue() posts EVT_XFER once the data buffer arrives
 	 * and the transfer is completed on that pass.
@@ -750,7 +750,9 @@ static void mchp_g2_ep0_state_tx(struct udc_mchp_g2_data *priv, uint8_t csr0L,
 /*
  * RX state: accumulate Control Write data into a staging buffer.
  * The SETUP buf is at the head of the OUT queue so data goes to staging first.
- * On last (short) packet, ACK with DataEnd to arm Status IN ZLP.
+ * On the last packet, defer ServicedRxPktRdy and DataEnd until the stack queues
+ * Status IN. Otherwise the host can issue its next SETUP before the stack
+ * has processed this payload, cancelling the pending data OUT request.
  */
 static void mchp_g2_ep0_state_rx(const struct device *dev, usbhs_registers_t *regs,
 				 struct udc_mchp_g2_data *priv, uint8_t csr0L)
@@ -787,12 +789,8 @@ static void mchp_g2_ep0_state_rx(const struct device *dev, usbhs_registers_t *re
 	       (priv->ep0_ctrl_bytes_received >= priv->ep0_ctrl_write_len);
 
 	if (last) {
-		/* Short packet = last; ACK with DataEnd to arm Status IN ZLP. */
-		regs->ENDPOINT0.USBHS_CSR0L |=
-			USBHS_ENDPOINT0_CSR0L_PERIPHERAL_EP0_SERVICEDRXPKTRDY_Msk |
-			USBHS_ENDPOINT0_CSR0L_PERIPHERAL_EP0_DATAEND_Msk;
-
-		priv->ep0_state = EP0_STATE_STATUS_IN;
+		/* Hold Status IN until the class handler has accepted the payload. */
+		priv->ep0_state = EP0_STATE_STATUS_IN_PENDING;
 		atomic_set(&priv->ep0_rx_done, 1);
 	} else {
 		/* More data expected; ACK without DataEnd. */
@@ -952,6 +950,9 @@ static void mchp_g2_handle_ep0_state(const struct device *dev, usbhs_registers_t
 				     uint16_t endpointTXInterrupts)
 {
 	switch (priv->ep0_state) {
+	case EP0_STATE_STATUS_IN_PENDING:
+		/* The stack will arm Status IN after processing the OUT data. */
+		break;
 	case EP0_STATE_IDLE:
 		mchp_g2_ep0_state_idle(regs, priv, csr0L);
 		break;
@@ -1132,7 +1133,7 @@ static int mchp_g2_enqueue_epx_in(const struct device *dev, usbhs_registers_t *r
 
 /*
  * EP0 IN enqueue. Three cases:
- *   status ZLP → post EVT_XFER only (hardware already sent it).
+ *   status ZLP → arm DataEnd for a completed Control Write, then notify the thread.
  *   TxPktRdy set → FIFO busy; skip (sequencing bug).
  *   data/ZLP → write FIFO, set TxPktRdy, set DataEnd on last packet.
  * Restores INDEX=0 first; a prior bulk enqueue may have left it non-zero.
@@ -1152,7 +1153,14 @@ static int mchp_g2_enqueue_ep0_in(const struct device *dev, usbhs_registers_t *r
 	regs->ENDPOINT0.USBHS_INDEX = USBHS_INDEX_SELEP(0);
 
 	if (bi->status != 0U) {
-		/* Status ZLP already sent by hardware; just notify the thread. */
+		if (priv->ep0_state == EP0_STATE_STATUS_IN_PENDING) {
+			/* The class has consumed the OUT data; allow the host to finish. */
+			priv->ep0_state = EP0_STATE_STATUS_IN;
+			regs->ENDPOINT0.USBHS_CSR0L |=
+				USBHS_ENDPOINT0_CSR0L_PERIPHERAL_EP0_SERVICEDRXPKTRDY_Msk |
+				USBHS_ENDPOINT0_CSR0L_PERIPHERAL_EP0_DATAEND_Msk;
+		}
+		/* Zero-data requests already arm DataEnd in the SETUP ISR. */
 		LOG_DBG("ep_enqueue: status IN ZLP queued, posting EVT_XFER");
 		k_event_post(&priv->events, MCHP_G2_EVT_XFER);
 		return 0;
