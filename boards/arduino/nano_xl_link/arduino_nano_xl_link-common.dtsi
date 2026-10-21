@@ -219,6 +219,19 @@
 		compatible = "microchip,pic32ck-sg-gc-gclkperiph";
 		#clock-cells = <1>;
 
+		/* 120 MHz exceeds the I2C baud divider range at 100 kHz. */
+		sercom3 {
+			subsystem = <CLOCK_MCHP_GCLKPERIPH_ID_SERCOM3_CORE>;
+			gclkperiph-src = "gclk2";
+			gclkperiph-en = <1>;
+		};
+
+		sercom4 {
+			subsystem = <CLOCK_MCHP_GCLKPERIPH_ID_SERCOM4_CORE>;
+			gclkperiph-src = "gclk2";
+			gclkperiph-en = <1>;
+		};
+
 		usb0 {
 			subsystem = <CLOCK_MCHP_GCLKPERIPH_ID_USB>;
 			gclkperiph-src = "gclk2";
