@@ -926,6 +926,14 @@ static void spi_stm32_msg_start(const struct device *dev, bool is_rx_empty)
 				 * FIFO full until all data is sent.
 				 */
 				spi_stm32_send_fifo(spi, data);
+				/* As peripheral the controller sets the pace: queue one more
+				 * packet so the TxFIFO doesn't underrun while the DXP ISR is
+				 * pending.
+				 */
+				if (LL_SPI_GetMode(spi) == LL_SPI_MODE_SLAVE &&
+				    data->tx_len != 0U && ll_tx_is_not_full(spi)) {
+					spi_stm32_send_fifo(spi, data);
+				}
 				ll_enable_int_dxp(spi);
 #endif /* DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_spi) */
 			} else {
