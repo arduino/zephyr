@@ -558,3 +558,15 @@ zephyr_udc1: &usbotg_fs {
 		four-channel-capture-support;
 	};
 };
+
+&timers2 {
+	st,prescaler = <254>;
+	status = "okay";
+
+	pwm2: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim2_ch4_pf4>;
+		pinctrl-names = "default";
+		four-channel-capture-support;
+	};
+};
