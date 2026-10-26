@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Gerson Fernando Budke <nandojve@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+DT_SAM_HAS_HIGH_SPEED := $(dt_compat_any_has_prop,$(DT_COMPAT_ATMEL_SAM_UOTGHS),maximum-speed,high-speed)
+
+config UDC_SAM_UOTGHS
+	bool "SAM UOTGHS USB Device Controller driver"
+	default y
+	depends on DT_HAS_ATMEL_SAM_UOTGHS_ENABLED
+	select PINCTRL
+	select EVENTS
+	select UDC_DRIVER_HAS_HIGH_SPEED_SUPPORT if $(DT_SAM_HAS_HIGH_SPEED)
+	help
+	  SAM3X/SAM3A family UOTGHS device controller driver.
+
+	  The driver support High-Speed (480 Mbps) and Full-Speed (12 Mbps)
+	  operation.
+
+if UDC_SAM_UOTGHS
+
+config UDC_SAM_UOTGHS_STACK_SIZE
+	int "UDC controller driver internal thread stack size"
+	default 512
+	help
+	  Device controller driver internal thread stack size.
+
+config UDC_SAM_UOTGHS_THREAD_PRIORITY
+	int "UDC controller driver thread priority"
+	default 8
+	help
+	  Device controller driver thread priority.
+
+endif # UDC_SAM_UOTGHS
