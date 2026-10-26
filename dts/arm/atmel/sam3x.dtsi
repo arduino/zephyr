@@ -104,6 +104,20 @@
 			status = "disabled";
 		};
 
+		zephyr_udc0: usbd@400ac000 {
+			compatible = "atmel,sam-uotghs";
+			reg = <0x400ac000 0x4000>, <0x20180000 0x50000>;
+			reg-names = "core", "fifo";
+			interrupts = <40 1>;
+			interrupt-names = "uotghs";
+			maximum-speed = "full-speed";
+			num-bidir-endpoints = <1>;
+			num-in-endpoints = <6>;
+			num-out-endpoints = <5>;
+			clocks = <&pmc PMC_TYPE_PERIPHERAL 40>;
+			status = "disabled";
+		};
+
 		twi0: i2c@4008c000 {
 			compatible = "atmel,sam-i2c-twi";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
