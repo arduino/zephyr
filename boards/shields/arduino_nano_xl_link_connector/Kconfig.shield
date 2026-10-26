@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Arduino SA
+# SPDX-License-Identifier: Apache-2.0
+
+config SHIELD_ARDUINO_NANO_XL_LINK_CONNECTOR
+	def_bool $(shields_list_contains,arduino_nano_xl_link_connector)

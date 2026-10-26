@@ -1,0 +1,6 @@
+shields:
+  - name: arduino_nano_xl_link_connector
+    full_name: Arduino Nano XL Link Connector
+    vendor: arduino
+    supported_features:
+      - wifi
