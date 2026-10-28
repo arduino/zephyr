@@ -77,6 +77,15 @@ endchoice # CPU_RA_DCACHE_WRITE_POLICY
 
 endif # CPU_HAS_DCACHE
 
+config SOC_RA_ICU_DYNAMIC_IRQ
+	bool "Allocate ICU event slots at run time"
+	select DYNAMIC_INTERRUPTS
+	help
+	  Let the drivers that support it (currently uart_ra_sci) take NVIC slots from a pool when
+	  they are initialized and give them back when deinitialized, instead of using the fixed
+	  ones from devicetree. Combined with zephyr,deferred-init this lets peripherals share
+	  the few ICU event slots.
+
 # Promptless (non-user) config options
 
 config SOC_RA_DYNAMIC_INTERRUPT_NUMBER
