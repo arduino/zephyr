@@ -13,6 +13,9 @@
 #include <soc.h>
 #include "r_sci_uart.h"
 #include "r_dtc.h"
+#ifdef CONFIG_SOC_RA_ICU_DYNAMIC_IRQ
+#include "ra_icu_dyn.h"
+#endif
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(ra_sci_uart);
@@ -1120,7 +1123,74 @@ static void uart_ra_sci_eri_isr(const struct device *dev)
 #define UART_RA_SCI_DTC_INIT(index)
 #endif
 
-#if CONFIG_UART_INTERRUPT_DRIVEN || CONFIG_UART_ASYNC_API
+#if (CONFIG_UART_INTERRUPT_DRIVEN || CONFIG_UART_ASYNC_API) && defined(CONFIG_SOC_RA_ICU_DYNAMIC_IRQ)
+static int uart_ra_sci_irq_alloc(const struct device *dev, const uint32_t events[4])
+{
+	struct uart_ra_sci_data *data = dev->data;
+	struct {
+		uint32_t event;
+		uint8_t ipl;
+		void (*isr)(const struct device *dev);
+		int *irq;
+	} lines[] = {
+		{events[0], data->fsp_config.rxi_ipl, uart_ra_sci_rxi_isr,
+		 (int *)&data->fsp_config.rxi_irq},
+		{events[1], data->fsp_config.txi_ipl, uart_ra_sci_txi_isr,
+		 (int *)&data->fsp_config.txi_irq},
+		{events[2], data->fsp_config.tei_ipl, uart_ra_sci_tei_isr,
+		 (int *)&data->fsp_config.tei_irq},
+		{events[3], data->fsp_config.eri_ipl, uart_ra_sci_eri_isr,
+		 (int *)&data->fsp_config.eri_irq},
+	};
+
+	for (size_t i = 0; i < ARRAY_SIZE(lines); i++) {
+		int slot = ra_icu_dyn_irq_connect(lines[i].event, lines[i].ipl,
+						  (void (*)(const void *))lines[i].isr, dev);
+
+		if (slot < 0) {
+			while (i-- > 0) {
+				ra_icu_dyn_irq_disconnect(*lines[i].irq);
+			}
+			return slot;
+		}
+		*lines[i].irq = slot;
+	}
+
+	return 0;
+}
+
+static void uart_ra_sci_irq_free(const struct device *dev)
+{
+	struct uart_ra_sci_data *data = dev->data;
+
+	ra_icu_dyn_irq_disconnect(data->fsp_config.rxi_irq);
+	ra_icu_dyn_irq_disconnect(data->fsp_config.txi_irq);
+	ra_icu_dyn_irq_disconnect(data->fsp_config.tei_irq);
+	ra_icu_dyn_irq_disconnect(data->fsp_config.eri_irq);
+}
+
+static int uart_ra_sci_deinit(const struct device *dev)
+{
+	struct uart_ra_sci_data *data = dev->data;
+
+	(void)R_SCI_UART_Close(&data->sci);
+	uart_ra_sci_irq_free(dev);
+	return 0;
+}
+
+#define UART_RA_SCI_IRQ_INIT(index)                                                                \
+	{                                                                                          \
+		int irq_err = uart_ra_sci_irq_alloc(                                               \
+			dev, (const uint32_t[]){                                                   \
+				    EVENT_SCI_RXI(DT_INST_PROP(index, channel)),                   \
+				    EVENT_SCI_TXI(DT_INST_PROP(index, channel)),                   \
+				    EVENT_SCI_TEI(DT_INST_PROP(index, channel)),                   \
+				    EVENT_SCI_ERI(DT_INST_PROP(index, channel))});                 \
+		if (irq_err < 0) {                                                                 \
+			return irq_err;                                                            \
+		}                                                                                  \
+	}
+#elif CONFIG_UART_INTERRUPT_DRIVEN || CONFIG_UART_ASYNC_API
 #define UART_RA_SCI_IRQ_INIT(index)                                                                \
 	{                                                                                          \
 		R_ICU->IELSR[DT_IRQ_BY_NAME(DT_INST_PARENT(index), rxi, irq)] =                    \
@@ -1156,6 +1226,20 @@ static void uart_ra_sci_eri_isr(const struct device *dev)
 #define FLOW_CTRL_PARAMETER(index)                                                                 \
 	COND_CODE_1(DT_INST_PROP(index, hw_flow_control),                                          \
 	(UART_CFG_FLOW_CTRL_RTS_CTS), (UART_CFG_FLOW_CTRL_NONE))
+
+#if (CONFIG_UART_INTERRUPT_DRIVEN || CONFIG_UART_ASYNC_API) &&                                    \
+	defined(CONFIG_SOC_RA_ICU_DYNAMIC_IRQ) && defined(CONFIG_DEVICE_DEINIT_SUPPORT)
+#define UART_RA_SCI_DEVICE_DEFINE(index)                                                           \
+	DEVICE_DT_INST_DEINIT_DEFINE(index, uart_ra_sci_init##index, uart_ra_sci_deinit, NULL,     \
+				     &uart_ra_sci_data_##index, &uart_ra_sci_config_##index,       \
+				     PRE_KERNEL_1, CONFIG_SERIAL_INIT_PRIORITY,                    \
+				     &uart_ra_sci_driver_api)
+#else
+#define UART_RA_SCI_DEVICE_DEFINE(index)                                                           \
+	DEVICE_DT_INST_DEFINE(index, uart_ra_sci_init##index, NULL, &uart_ra_sci_data_##index,     \
+			      &uart_ra_sci_config_##index, PRE_KERNEL_1,                           \
+			      CONFIG_SERIAL_INIT_PRIORITY, &uart_ra_sci_driver_api)
+#endif
 
 #define UART_RA_SCI_INIT(index)                                                                    \
 	PINCTRL_DT_DEFINE(DT_INST_PARENT(index));                                                  \
@@ -1200,8 +1284,6 @@ static void uart_ra_sci_eri_isr(const struct device *dev)
 		}                                                                                  \
 		return 0;                                                                          \
 	}                                                                                          \
-	DEVICE_DT_INST_DEFINE(index, uart_ra_sci_init##index, NULL, &uart_ra_sci_data_##index,     \
-			      &uart_ra_sci_config_##index, PRE_KERNEL_1,                           \
-			      CONFIG_SERIAL_INIT_PRIORITY, &uart_ra_sci_driver_api);
+	UART_RA_SCI_DEVICE_DEFINE(index);
 
 DT_INST_FOREACH_STATUS_OKAY(UART_RA_SCI_INIT)
