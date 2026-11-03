@@ -6,6 +6,7 @@
 
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
+#include <zephyr/devicetree/nvmem.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/net/mii.h>
 #include <zephyr/net/ethernet.h>
@@ -17,6 +18,12 @@
 LOG_MODULE_REGISTER(eth_mchp_gmac_g1, CONFIG_ETHERNET_LOG_LEVEL);
 
 #define DT_DRV_COMPAT microchip_gmac_g1_eth
+
+#if DT_INST_NVMEM_CELLS_HAS_NAME(0, mac_address)
+#define ETH_MCHP_MAC_CELL_NODE DT_NVMEM_CELL_BY_NAME(DT_DRV_INST(0), mac_address)
+#define ETH_MCHP_MAC_CELL_MTD_NODE DT_MTD_FROM_NVMEM_CELL(ETH_MCHP_MAC_CELL_NODE)
+#define ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH DT_NODE_HAS_COMPAT(ETH_MCHP_MAC_CELL_MTD_NODE, soc_nv_flash)
+#endif
 
 #define GMAC_PHY_CONN_TYPE_MII  0
 #define GMAC_PHY_CONN_TYPE_RMII 1
@@ -93,6 +100,8 @@ BUILD_ASSERT(ARRAY_SIZE(GMAC->GMAC_TBQBAPQ) + 1 == GMAC_QUEUE_NUM,
 
 #define GMAC_DMA_QUEUE_FLAGS (0)
 
+#define TIMEOUT_REG_SYNC 1000
+
 enum queue_idx {
 	GMAC_QUE_0, /* Main queue */
 };
@@ -153,6 +162,10 @@ struct gmac_dev_config {
 	const struct device *phy_dev;
 	clock_control_subsys_t mclk_apb_sys;
 	clock_control_subsys_t mclk_ahb_sys;
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	clock_control_subsys_t gclk_tx_sys;
+	clock_control_subsys_t gclk_tsu_sys;
+#endif
 	const struct net_eth_mac_config mcfg;
 };
 
@@ -380,9 +393,28 @@ static void gmac_rx_error_handler(gmac_registers_t *gmac, struct gmac_queue *que
 static int gmac_set_phy_connection_type(gmac_registers_t *gmac)
 {
 #ifdef GMAC_PHY_CONN_TYPE_MII_ENABLED
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_CTRLB &= ~ETH_CTRLB_GBITCLKREQ_Msk;
+	gmac->ETH_CTRLB |= ETH_CTRLB_GMIIEN(1);
+	if (WAIT_FOR((gmac->ETH_SYNCB == 0), TIMEOUT_REG_SYNC, NULL) == false) {
+		LOG_ERR("SYNCBUSY timeout");
+		return -ETIMEDOUT;
+	}
+	gmac->GMAC_NCFGR &= ~GMAC_NCFGR_GIGE_Msk;
+#else
 	gmac->GMAC_UR = 0x1;
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
 #elif defined(GMAC_PHY_CONN_TYPE_RMII_ENABLED)
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_CTRLB &= ~(ETH_CTRLB_GMIIEN_Msk | ETH_CTRLB_GBITCLKREQ_Msk);
+	if (WAIT_FOR((gmac->ETH_SYNCB == 0), TIMEOUT_REG_SYNC, NULL) == false) {
+		LOG_ERR("SYNCBUSY timeout");
+		return -ETIMEDOUT;
+	}
+	gmac->GMAC_NCFGR &= ~GMAC_NCFGR_GIGE_Msk;
+#else
 	gmac->GMAC_UR = 0x0;
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
 #endif /* GMAC_PHY_CONN_TYPE_MII_ENABLED */
 
 	return 0;
@@ -420,15 +452,29 @@ static int gmac_init(const struct device *dev, gmac_registers_t *gmac)
 	uint32_t mck_divisor;
 	const struct gmac_dev_config *const cfg = dev->config;
 
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_CTRLA = ETH_CTRLA_ENABLE(1);
+	if (WAIT_FOR((gmac->ETH_SYNCB == 0), TIMEOUT_REG_SYNC, NULL) == false) {
+		LOG_ERR("SYNCBUSY timeout");
+		return -ETIMEDOUT;
+	}
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
 	gmac->GMAC_NCFGR |= GMAC_NCFGR_MTIHEN_Msk | GMAC_NCFGR_LFERD_Msk | GMAC_NCFGR_RFCS_Msk |
 #ifdef CONFIG_NET_VLAN
 			    GMAC_NCFGR_MAXFS_Msk |
+#endif
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+			    ETH_NCFGR_DBW(1) |
 #endif
 			    GMAC_NCFGR_RXCOEN_Msk;
 
 	gmac->GMAC_NCR = GMAC_NCR_CLRSTAT_Msk | GMAC_NCR_MPE_Msk;
 	gmac->GMAC_IDR = UINT32_MAX;
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	gmac->ETH_ISR = gmac->ETH_ISR & ETH_ISR_Msk;
+#else
 	(void)gmac->GMAC_ISR;
+#endif
 	gmac->GMAC_HRB = UINT32_MAX;
 	gmac->GMAC_HRT = UINT32_MAX;
 	gmac->GMAC_RSR = GMAC_RSR_RESETVALUE;
@@ -558,6 +604,7 @@ static struct net_pkt *gmac_extract_and_replace_buffers(struct gmac_queue *queue
 		}
 
 		frame_len += frag_len;
+
 		new_frag = net_pkt_get_frag(rx_pkt, CONFIG_NET_BUF_DATA_SIZE, K_NO_WAIT);
 		if (new_frag == NULL) {
 			bool eof_flag = false;
@@ -768,6 +815,8 @@ static int eth_mchp_send(const struct device *dev, struct net_pkt *pkt)
 		pkt_buff_cnt--;
 	}
 
+	__ISB();
+	__DSB();
 	gmac_regs->GMAC_NCR |= GMAC_NCR_TSTART_Msk;
 
 	return 0;
@@ -782,7 +831,13 @@ static void eth_mchp_queue0_isr(const struct device *dev)
 	struct gmac_desc_list *rx_desc_list = &queue->rx_desc_list;
 	struct gmac_desc_list *tx_desc_list = &queue->tx_desc_list;
 	struct gmac_desc *tail_desc;
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	uint32_t isr = gmac_regs->ETH_ISR & ETH_ISR_Msk;
+
+	gmac_regs->ETH_ISR = isr;
+#else
 	uint32_t isr = gmac_regs->GMAC_ISR;
+#endif
 
 	LOG_DBG("GMAC_ISR=0x%08x", isr);
 
@@ -839,6 +894,23 @@ static int eth_mchp_initialize(const struct device *dev)
 
 		return retval;
 	}
+
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	retval = clock_control_on(DEVICE_DT_GET(DT_NODELABEL(clock)), cfg->gclk_tx_sys);
+	if ((retval != 0) && (retval != -EALREADY)) {
+		LOG_ERR("Failed to enable GCLK TX for Ethernet: %d", retval);
+
+		return retval;
+	}
+
+	retval = clock_control_on(DEVICE_DT_GET(DT_NODELABEL(clock)), cfg->gclk_tsu_sys);
+	if ((retval != 0) && (retval != -EALREADY)) {
+		LOG_ERR("Failed to enable GCLK TSU for Ethernet: %d", retval);
+
+		return retval;
+	}
+
+#endif /* CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC */
 
 	retval = pinctrl_apply_state(cfg->pinctrl_cfg, PINCTRL_STATE_DEFAULT);
 	if (retval != 0) {
@@ -914,6 +986,43 @@ static void eth_mchp_iface_init(struct net_if *iface)
 
 		return;
 	}
+
+#if defined(ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH) && ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH
+	if (result == -ENODATA) {
+		uintptr_t mac_src = DT_REG_ADDR(ETH_MCHP_MAC_CELL_MTD_NODE) +
+			DT_REG_ADDR(ETH_MCHP_MAC_CELL_NODE);
+		uint32_t fccfg72 = *(const uint32_t *)mac_src;
+		uint32_t fccfg73 = *(const uint32_t *)(mac_src + sizeof(uint32_t));
+		struct net_eth_addr mac = {0};
+
+		/*
+		 * Datasheet:
+		 *   FCCFG72 User SW => ETH FMAC[31:0]
+		 *   FCCFG73 User SW => ETH FMAC[47:32] in bits [15:0]
+		 * Convert that 48-bit value into the conventional MAC octet order.
+		 */
+		mac.addr[0] = (uint8_t)((fccfg73 >> 8) & 0xffU);
+		mac.addr[1] = (uint8_t)(fccfg73 & 0xffU);
+		mac.addr[2] = (uint8_t)((fccfg72 >> 24) & 0xffU);
+		mac.addr[3] = (uint8_t)((fccfg72 >> 16) & 0xffU);
+		mac.addr[4] = (uint8_t)((fccfg72 >> 8) & 0xffU);
+		mac.addr[5] = (uint8_t)(fccfg72 & 0xffU);
+
+		LOG_INF("soc-nv-flash MAC source @0x%08x", (uint32_t)mac_src);
+		LOG_INF("soc-nv-flash FCCFG72=0x%08x FCCFG73=0x%08x", fccfg72, fccfg73);
+		LOG_INF("soc-nv-flash MAC decoded %02x:%02x:%02x:%02x:%02x:%02x", mac.addr[0],
+			mac.addr[1], mac.addr[2], mac.addr[3], mac.addr[4], mac.addr[5]);
+
+		if (net_eth_is_addr_valid(&mac)) {
+			memcpy(mac_addr, mac.addr, NET_ETH_ADDR_LEN);
+			result = 0;
+			LOG_INF("Loaded MAC from soc-nv-flash nvmem cell");
+		} else {
+			LOG_WRN("Invalid MAC in soc-nv-flash nvmem cell (all-zero=%d multicast=%d)",
+				net_eth_is_addr_all_zeroes(&mac), net_eth_is_addr_multicast(&mac));
+		}
+	}
+#endif
 
 	if (result != -ENODATA) {
 		gmac_mac_addr_set(gmac_regs, 0, mac_addr);
@@ -1079,9 +1188,21 @@ static const struct gmac_dev_config eth_config = {
 	.active_queues = DT_INST_PROP(0, num_queues),
 	.pinctrl_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(0),
 	.config_func = eth_irq_config,
+
+#if defined(ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH) && ETH_MCHP_MAC_CELL_MTD_IS_SOC_NV_FLASH
+	.mcfg = {
+		.type = NET_ETH_MAC_DEFAULT,
+	},
+#else
 	.mcfg = NET_ETH_MAC_DT_INST_CONFIG_INIT(0),
+#endif
+
 	.mclk_apb_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, mclk_apb, subsystem),
 	.mclk_ahb_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, mclk_ahb, subsystem),
+#ifdef CONFIG_SOC_FAMILY_MICROCHIP_PIC32CK_SG_GC
+	.gclk_tx_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, gclk_tx, subsystem),
+	.gclk_tsu_sys = (void *)DT_INST_CLOCKS_CELL_BY_NAME(0, gclk_tsu, subsystem),
+#endif
 	.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(0, phy_handle))};
 
 static struct gmac_dev_data eth_data;
