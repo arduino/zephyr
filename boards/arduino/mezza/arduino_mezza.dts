@@ -29,6 +29,7 @@
 		zephyr,canbus = &fdcan1;
 		zephyr,boot-mode = &retention1;
 		zephyr,system-timer = &lptim4;
+		zephyr,bt-hci = &bt_hci_uart;
 	};
 
 	aliases {
@@ -74,5 +75,15 @@
 	board_cdc_acm_uart: board_cdc_acm_uart {
 		compatible = "zephyr,cdc-acm-uart";
 		status = "okay";
+	};
+};
+
+&uart9 {
+	status = "okay";
+
+	bt_hci_uart: bt_hci_uart {
+		compatible = "zephyr,bt-hci-uart";
+		status = "okay";
+
 	};
 };
