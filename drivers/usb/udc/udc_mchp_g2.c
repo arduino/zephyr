@@ -133,6 +133,10 @@ struct udc_mchp_g2_data {
 	const struct device *dev;
 	struct k_work_delayable vbus_work;
 	bool vbus_present;
+
+	/* SET_ADDRESS value held back until its status stage completes. */
+	uint8_t pending_addr;
+	bool addr_pending;
 };
 
 /* Return the TXFIFOSZ/RXFIFOSZ SIZE field code for a given buffer size. */
@@ -562,6 +566,19 @@ static void mchp_g2_fifo_read(volatile uint32_t *fifo, uint8_t *dst, uint32_t le
 	}
 }
 
+/*
+ * FADDR takes effect immediately, so it must not be written before the
+ * SET_ADDRESS status stage has completed: the host sends the status IN token
+ * to the old address and would get no handshake.
+ */
+static void mchp_g2_apply_pending_addr(usbhs_registers_t *regs, struct udc_mchp_g2_data *priv)
+{
+	if (priv->addr_pending) {
+		regs->ENDPOINT0.USBHS_FADDR = USBHS_FADDR_FUNCADDR(priv->pending_addr);
+		priv->addr_pending = false;
+	}
+}
+
 static void mchp_g2_handle_phyrdy(usbhs_registers_t *regs)
 {
 	regs->ENDPOINT0.USBHS_INTFLAG = USBHS_INTFLAG_PHYRDY_Msk;
@@ -582,6 +599,7 @@ static bool mchp_g2_handle_usb_events(usbhs_registers_t *regs, struct udc_mchp_g
 		priv->ep0_rx_staging_len = 0U;
 		priv->ep0_ctrl_write_len = 0U;
 		priv->ep0_ctrl_bytes_received = 0U;
+		priv->addr_pending = false;
 		/* Clear stale bulk endpoint state on reset */
 		atomic_clear(&priv->bulk_tx_done);
 		atomic_clear(&priv->bulk_rx_done);
@@ -716,6 +734,7 @@ static void mchp_g2_ep0_state_status_in(usbhs_registers_t *regs, struct udc_mchp
 		 * SETUP. Returning here would leave RxPktRdy asserted and wedge
 		 * EP0 permanently. Drop back to IDLE and consume the SETUP now.
 		 */
+		mchp_g2_apply_pending_addr(regs, priv);
 		priv->ep0_state = EP0_STATE_IDLE;
 		mchp_g2_ep0_state_idle(regs, priv, csr0L);
 		k_event_post(&priv->events, MCHP_G2_EVT_XFER);
@@ -726,6 +745,7 @@ static void mchp_g2_ep0_state_status_in(usbhs_registers_t *regs, struct udc_mchp
 		return; /* Not a real EP0 event. */
 	}
 
+	mchp_g2_apply_pending_addr(regs, priv);
 	priv->ep0_state = EP0_STATE_IDLE;
 	k_event_post(&priv->events, MCHP_G2_EVT_XFER);
 }
@@ -1620,12 +1640,26 @@ static int udc_mchp_g2_ep_clear_halt(const struct device *dev, struct udc_ep_con
 static int udc_mchp_g2_set_address(const struct device *dev, const uint8_t addr)
 {
 	const struct udc_mchp_g2_config *config = dev->config;
+	struct udc_mchp_g2_data *priv = udc_get_private(dev);
 	usbhs_registers_t *regs = (usbhs_registers_t *)(config->base);
+	unsigned int key;
 
 	LOG_DBG("Set address %u for %p", addr, dev);
 
-	/* Redundant; ISR already set FADDR at SETUP decode. */
-	regs->ENDPOINT0.USBHS_FADDR = USBHS_FADDR_FUNCADDR(addr);
+	/*
+	 * The SETUP ISR arms the status stage right away, but the stack calls
+	 * this once the status buffer is dequeued, which can be before the host
+	 * has sent the status IN token. Defer the write to the status completion
+	 * interrupt in that case.
+	 */
+	key = irq_lock();
+	if (priv->ep0_state == EP0_STATE_STATUS_IN) {
+		priv->pending_addr = addr;
+		priv->addr_pending = true;
+	} else {
+		regs->ENDPOINT0.USBHS_FADDR = USBHS_FADDR_FUNCADDR(addr);
+	}
+	irq_unlock(key);
 
 	LOG_INF("USB device address set to %u", addr);
 
