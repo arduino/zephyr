@@ -204,6 +204,9 @@ static uint16_t mchp_g2_fifo_allocate(struct udc_mchp_g2_data *priv, uint16_t si
 	return (uint16_t)(start_idx * MCHP_G2_FIFO_UNIT_SIZE);
 }
 
+static int mchp_g2_enqueue_epx_in(const struct device *dev, usbhs_registers_t *regs,
+				  struct udc_ep_config *const cfg, struct net_buf *buf);
+
 /* Process completed EP1-7 IN transfers. */
 static void mchp_g2_handle_bulk_tx(const struct device *dev)
 {
@@ -272,6 +275,15 @@ static void mchp_g2_handle_bulk_tx(const struct device *dev)
 			} else {
 				/* Dequeue completed transfer. */
 				udc_submit_ep_event(dev, udc_buf_get(ep_cfg), 0);
+
+				/*
+				 * Start the next queued transfer: its enqueue found
+				 * the endpoint busy and left it to this completion.
+				 */
+				buf = udc_buf_peek(ep_cfg);
+				if (buf != NULL && buf->len > 0U && !ep_cfg->stat.halted) {
+					mchp_g2_enqueue_epx_in(dev, regs, ep_cfg, buf);
+				}
 			}
 		}
 	}
@@ -1125,6 +1137,15 @@ static int mchp_g2_enqueue_epx_in(const struct device *dev, usbhs_registers_t *r
 	volatile uint8_t *ep_fifo = (volatile uint8_t *)&regs->ENDPOINT0.USBHS_FIFOX[ep_idx];
 	size_t chunk;
 	size_t i;
+
+	/*
+	 * Only the head of the queue may be sent. A later buffer is started by
+	 * mchp_g2_handle_bulk_tx() when the one before it completes.
+	 */
+	if (udc_buf_peek(cfg) != buf) {
+		irq_unlock(key);
+		return 0;
+	}
 
 	regs->ENDPOINT0.USBHS_INDEX = USBHS_INDEX_SELEP(ep_idx);
 
