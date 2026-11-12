@@ -133,7 +133,10 @@
 		xosc-clock-switch-back-en = <0>;
 		xosc-frequency = <12000000>;
 		xosc-on-demand-en = <0>;
-		xosc-startup-time = <500000>;
+		/* The start-up time is waited out on every boot; the 12 MHz crystal
+		 * needs a few ms, not 500.
+		 */
+		xosc-startup-time = <15625>;
 		xosc-clock-failure-detection-en = <0>;
 		xosc-safe-clock-frequency = <48>;
 		xosc-usbhs-ref-clock-div = "usbhs-pll-ref-xosc-clock-div-1";
