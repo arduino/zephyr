@@ -216,6 +216,9 @@ enum esp_data_flag {
 /* driver data */
 struct esp_data {
 	struct net_if *net_iface;
+#if defined(CONFIG_WIFI_ESP_AT_NET_IF_NO_AUTO_START)
+	bool hw_started;
+#endif
 
 	uint8_t flags;
 	uint8_t mode;
