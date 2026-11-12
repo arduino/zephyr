@@ -122,6 +122,8 @@ function(edk_write_var target var_name var_value)
         #   set(var "value1;value2;...")
         #
         set(DASHIMACROS "-imacros\${CMAKE_CURRENT_LIST_DIR}/")
+        set(DASHINCLUDE "-include\${CMAKE_CURRENT_LIST_DIR}/")
+        set(DASHISYSTEM "-isystem\${CMAKE_CURRENT_LIST_DIR}/")
         set(DASHI "-I\${CMAKE_CURRENT_LIST_DIR}/")
         edk_escape(${target} "${var_value}" var_value)
         string(CONFIGURE "${var_value}" exp_var_value @ONLY)
@@ -133,6 +135,8 @@ function(edk_write_var target var_name var_value)
         #   var = "value1" "value2" ...
         #
         set(DASHIMACROS "-imacros\$(${install_dir_var})/")
+        set(DASHINCLUDE "-include\$(${install_dir_var})/")
+        set(DASHISYSTEM "-isystem\$(${install_dir_var})/")
         set(DASHI "-I\$(${install_dir_var})/")
         edk_escape(${target} "${var_value}" var_value)
         string(CONFIGURE "${var_value}" exp_var_value @ONLY)
@@ -205,23 +209,42 @@ set(llext_edk_inc ${llext_edk}/include)
 zephyr_string(SANITIZE TOUPPER var_prefix ${llext_edk_name})
 set(install_dir_var "${var_prefix}_INSTALL_DIR")
 
-set(make_relative FALSE)
+set(make_relative "")
 foreach(flag ${llext_edk_cflags})
     # Detect all combinations of 'imacros' flag:
     # - with one or two preceding dashes
     # - separated from the argument, joined by '=', or joined (no separator)
     if(flag MATCHES "^--?imacros$")
         # imacros followed by a space, convert next argument
-        set(make_relative TRUE)
+        set(make_relative imacros)
         continue()
     elseif(flag MATCHES "^--?imacros=?([^=].*)$")
         # imacros=<stuff> or imacros<stuff>, immediately convert <stuff>
         set(flag ${CMAKE_MATCH_1})
-        set(make_relative TRUE)
+        set(make_relative imacros)
+    # Detect 'include' flags separated from the argument or joined by '='
+    elseif(flag MATCHES "^--?include$")
+        # include followed by a space, convert next argument
+        set(make_relative include)
+        continue()
+    elseif(flag MATCHES "^--include=(.+)$")
+        # include=<stuff>, immediately convert <stuff>
+        set(flag ${CMAKE_MATCH_1})
+        set(make_relative include)
+    # Detect 'isystem' flags separated from the argument or joined to an
+    # absolute path
+    elseif(flag MATCHES "^-isystem$")
+        # isystem followed by a space, convert next argument
+        set(make_relative isystem)
+        continue()
+    elseif(flag MATCHES "^-isystem(/.+)$")
+        # isystem<absolute path>, immediately convert it
+        set(flag ${CMAKE_MATCH_1})
+        set(make_relative isystem)
     endif()
 
-    if(make_relative)
-        set(make_relative FALSE)
+    if(make_relative STREQUAL "imacros")
+        set(make_relative "")
         cmake_path(GET flag PARENT_PATH parent)
         cmake_path(GET flag FILENAME name)
         relative_dir(${parent} dest bindir)
@@ -230,6 +253,30 @@ foreach(flag ${llext_edk_cflags})
             list(APPEND imacros_gen "@DASHIMACROS@${dest_rel}/${name}")
         else()
             list(APPEND imacros "@DASHIMACROS@${dest_rel}/${name}")
+        endif()
+    elseif(make_relative STREQUAL "include")
+        set(make_relative "")
+        # The forced include file may not be in an exported include directory:
+        # copy it to the EDK, keeping its position in the flags
+        cmake_path(GET flag PARENT_PATH parent)
+        cmake_path(GET flag FILENAME name)
+        relative_dir(${parent} dest bindir)
+        file(COPY ${flag} DESTINATION ${dest})
+        cmake_path(RELATIVE_PATH dest BASE_DIRECTORY ${llext_edk} OUTPUT_VARIABLE dest_rel)
+        list(APPEND new_cflags "@DASHINCLUDE@${dest_rel}/${name}")
+    elseif(make_relative STREQUAL "isystem")
+        set(make_relative "")
+        if(EXISTS ${flag})
+            # Copy all headers in this system include directory to the EDK, as for the include
+            # directories, keeping its position in the flags
+            relative_dir(${flag} dest bindir)
+            cmake_path(GET dest PARENT_PATH dest_p)
+            file(MAKE_DIRECTORY ${dest_p})
+            file(COPY ${flag} DESTINATION ${dest_p} FILES_MATCHING PATTERN "*.h")
+            cmake_path(RELATIVE_PATH dest BASE_DIRECTORY ${llext_edk} OUTPUT_VARIABLE dest_rel)
+            list(APPEND new_cflags "@DASHISYSTEM@${dest_rel}")
+        else()
+            list(APPEND new_cflags "-isystem" ${flag})
         endif()
     else()
         list(APPEND new_cflags ${flag})
