@@ -19,6 +19,7 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/retained_mem.h>
 #include <zephyr/retention/bootmode.h>
+#include <soc.h>
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(retained_ram))
 
@@ -52,6 +53,16 @@ SYS_INIT(double_tap_arm, PRE_KERNEL_1, 1);
 BUILD_ASSERT(CONFIG_RETAINED_MEM_INIT_PRIORITY < 1,
 	     "the retained-RAM driver must be up before double_tap_arm()");
 
+/*
+ * Only a reset-button press can start a double tap: software and watchdog
+ * resets (uploads, OTA, sys_reboot) skip the window. Read RCAUSE directly:
+ * hwinfo has no RSTC node on this SoC, and its bit map is not PIC32CK's.
+ */
+static bool reset_by_button(void)
+{
+	return (RSTC_REGS->RSTC_RCAUSE & RSTC_RCAUSE_EXT_Msk) != 0;
+}
+
 /* Before main(), which is where MCUboot reads (and clears) the boot mode. */
 static int double_tap_check(void)
 {
@@ -59,7 +70,9 @@ static int double_tap_check(void)
 		(void)bootmode_set(BOOT_MODE_TYPE_BOOTLOADER);
 	} else {
 		/* Hold the window open so a second tap finds the cookie armed. */
-		k_msleep(DOUBLE_TAP_WINDOW_MS);
+		if (reset_by_button()) {
+			k_msleep(DOUBLE_TAP_WINDOW_MS);
+		}
 		(void)retained_mem_write(retained_ram, DOUBLE_TAP_OFFSET, double_tap_clear,
 					 sizeof(double_tap_clear));
 	}
