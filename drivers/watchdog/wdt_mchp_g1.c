@@ -413,6 +413,21 @@ static int wdt_mchp_install_timeout(const struct device *wdt_dev, const struct w
 
 	/* CONFIG is enable protected, error out if already enabled */
 	if (wdt_is_enabled(regs) != 0) {
+		uint8_t per = (regs->WDT_CONFIG & WDT_CONFIG_PER_Msk) >> WDT_CONFIG_PER_Pos;
+
+		/* Started by an earlier boot stage with the same normal-mode
+		 * timeout: adopt it as channel 0 so this image can feed it.
+		 */
+		if ((mchp_wdt_data->installed_timeout_cnt == 0) && (cfg->window.min == 0) &&
+		    ((regs->WDT_CTRLA & WDT_CTRLA_WEN(1)) == 0) &&
+		    (wdt_get_period_idx(cfg->window.max) == per)) {
+			channel_data[0].window.min = 0;
+			channel_data[0].window.max = PERIOD_VALUE(per);
+			mchp_wdt_data->installed_timeout_cnt = 1;
+			k_mutex_unlock(&mchp_wdt_data->lock);
+			return 0;
+		}
+
 		k_mutex_unlock(&mchp_wdt_data->lock);
 		LOG_ERR("Watchdog already setup");
 		return -EBUSY;

@@ -745,6 +745,17 @@ int net_context_put(struct net_context *context)
 	if (IS_ENABLED(CONFIG_NET_OFFLOAD) &&
 	    net_if_is_ip_offloaded(net_context_get_iface(context))) {
 		ret = net_offload_put(net_context_get_iface(context), context);
+
+#if defined(CONFIG_NET_TCP)
+		/* net_context_get() allocates a native TCP connection when the
+		 * default interface is not offloaded, before the context is bound
+		 * to an interface. It was never used here, release it.
+		 */
+		if (context->tcp != NULL) {
+			(void)net_tcp_put(context, false);
+		}
+#endif
+
 		k_mutex_unlock(&context->lock);
 		context->flags &= ~NET_CONTEXT_IN_USE;
 		return ret;
