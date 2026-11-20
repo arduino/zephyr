@@ -799,6 +799,18 @@ fp_trap_exit:
 #ifdef CONFIG_CLIC_SUPPORT_INTERRUPT_LEVEL
 	/* Restore MCAUSE register for previous interrupt level. */
 	lr t1, __struct_arch_esf_mcause_OFFSET(sp)
+#ifdef CONFIG_NUCLEI_ECLIC
+	/*
+	 * Nuclei ECLIC: mret restores mintstatus.MIL from mcause.MPIL only when
+	 * mcause.INTERRUPT is set. Contexts saved on an exception (ecall context
+	 * switch) or built by arch_new_thread() have it clear, so a thread
+	 * switched in at the end of an ISR would keep running at the ISR level
+	 * and mask every interrupt until it traps again.
+	 */
+	li t3, 1
+	slli t3, t3, __riscv_xlen - 1
+	or t1, t1, t3
+#endif /* CONFIG_NUCLEI_ECLIC */
 	csrw mcause, t1
 #endif /* CONFIG_CLIC_SUPPORT_INTERRUPT_LEVEL */
 
