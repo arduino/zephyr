@@ -4,9 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/*
+ * PORT and EIC are mixed-security peripherals on SG parts: pins and EXTINT
+ * lines reset secure (PORT_NONSEC/EIC_NONSEC = 0) and accesses through the
+ * non-secure alias are masked for them, so use the secure aliases.
+ */
+#define PIC32CK_EIC_ADDR 4401b000
+
 / {
 	soc {
 		pinctrl: pinctrl@44801000 {
+			reg = <0x44801000 0x200>;
 			ranges = <0x0 0x44801000 0x200>;
 		};
 	};

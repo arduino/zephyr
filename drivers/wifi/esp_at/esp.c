@@ -1503,7 +1503,8 @@ static void esp_init_work(struct k_work *work)
 	k_sem_give(&dev->sem_if_up);
 }
 
-static int esp_reset(const struct device *dev)
+/* Reset the device; it reports ready asynchronously, giving sem_if_up. */
+static int esp_reset_start(const struct device *dev)
 {
 	struct esp_data *data = dev->data;
 	int ret = -EAGAIN;
@@ -1546,6 +1547,21 @@ static int esp_reset(const struct device *dev)
 		return -EAGAIN;
 	}
 #endif
+	ARG_UNUSED(ret);
+
+	return 0;
+}
+
+static int esp_reset(const struct device *dev)
+{
+	struct esp_data *data = dev->data;
+	int ret;
+
+	ret = esp_reset_start(dev);
+	if (ret < 0) {
+		return ret;
+	}
+
 	LOG_INF("Waiting for interface to come up");
 
 	ret = k_sem_take(&data->sem_if_up, ESP_INIT_TIMEOUT);
@@ -1562,6 +1578,12 @@ static void esp_iface_init(struct net_if *iface)
 
 	/* Not currently connected to a network */
 	net_if_dormant_on(iface);
+
+	if (IS_ENABLED(CONFIG_WIFI_ESP_AT_NET_IF_NO_AUTO_START)) {
+		/* No carrier until the device, started on net_if_up(), is ready */
+		net_if_carrier_off(iface);
+		net_if_flag_set(iface, NET_IF_NO_AUTO_START);
+	}
 }
 
 static enum offloaded_net_if_types esp_offload_get_type(void)
@@ -1578,13 +1600,21 @@ static const struct wifi_mgmt_ops esp_mgmt_ops = {
 	.iface_status	   = esp_mgmt_iface_status,
 };
 
+#if defined(CONFIG_WIFI_ESP_AT_NET_IF_NO_AUTO_START)
+static int esp_offload_enable(const struct net_if *iface, bool state);
+#endif
+
 static const struct net_wifi_mgmt_offload esp_api = {
 	.wifi_iface.iface_api.init = esp_iface_init,
 	.wifi_iface.get_type = esp_offload_get_type,
+#if defined(CONFIG_WIFI_ESP_AT_NET_IF_NO_AUTO_START)
+	.wifi_iface.enable = esp_offload_enable,
+#endif
 	.wifi_mgmt_api = &esp_mgmt_ops,
 };
 
 static int esp_init(const struct device *dev);
+static int esp_hw_start(const struct device *dev);
 
 /* The network device must be instantiated above the init function in order
  * for the struct net_if that the macro declares to be visible inside the
@@ -1599,9 +1629,6 @@ CONNECTIVITY_WIFI_MGMT_BIND(Z_DEVICE_DT_DEV_ID(DT_DRV_INST(0)));
 
 static int esp_init(const struct device *dev)
 {
-#if DT_INST_NODE_HAS_PROP(0, power_gpios) || DT_INST_NODE_HAS_PROP(0, reset_gpios)
-	const struct esp_config *config = dev->config;
-#endif
 	struct esp_data *data = dev->data;
 	int ret = 0;
 
@@ -1650,6 +1677,34 @@ static int esp_init(const struct device *dev)
 		goto error;
 	}
 
+	/* Retrieve associated network interface so asynchronous messages can be processed early */
+	data->net_iface = NET_IF_GET(Z_DEVICE_DT_DEV_ID(DT_DRV_INST(0)), 0);
+
+	if (IS_ENABLED(CONFIG_WIFI_ESP_AT_NET_IF_NO_AUTO_START)) {
+		return 0;
+	}
+
+	ret = esp_hw_start(dev);
+	if (ret < 0) {
+		goto error;
+	}
+
+	/* Reset the modem */
+	ret = esp_reset(dev);
+
+error:
+	return ret;
+}
+
+/* Open the UART, set up the pins and start receiving. */
+static int esp_hw_start(const struct device *dev)
+{
+#if DT_INST_NODE_HAS_PROP(0, power_gpios) || DT_INST_NODE_HAS_PROP(0, reset_gpios)
+	const struct esp_config *config = dev->config;
+#endif
+	struct esp_data *data = dev->data;
+	int ret;
+
 	/* modem interface */
 	const struct modem_iface_uart_config uart_config = {
 		.rx_rb_buf = &data->iface_rb_buf[0],
@@ -1663,12 +1718,12 @@ static int esp_init(const struct device *dev)
 	ret = modem_context_register(&data->mctx);
 	if (ret < 0) {
 		LOG_ERR("Error registering modem context: %d", ret);
-		goto error;
+		return ret;
 	}
 
 	ret = modem_iface_uart_init(&data->mctx.iface, &data->iface_data, &uart_config);
 	if (ret < 0) {
-		goto error;
+		return ret;
 	}
 
 	/* pin setup */
@@ -1676,14 +1731,14 @@ static int esp_init(const struct device *dev)
 	ret = gpio_pin_configure_dt(&config->power, GPIO_OUTPUT_INACTIVE);
 	if (ret < 0) {
 		LOG_ERR("Failed to configure %s pin", "power");
-		goto error;
+		return ret;
 	}
 #endif
 #if DT_INST_NODE_HAS_PROP(0, reset_gpios)
 	ret = gpio_pin_configure_dt(&config->reset, GPIO_OUTPUT_INACTIVE);
 	if (ret < 0) {
 		LOG_ERR("Failed to configure %s pin", "reset");
-		goto error;
+		return ret;
 	}
 #endif
 
@@ -1696,12 +1751,33 @@ static int esp_init(const struct device *dev)
 			K_NO_WAIT);
 	k_thread_name_set(&esp_rx_thread, "esp_rx");
 
-	/* Retrieve associated network interface so asynchronous messages can be processed early */
-	data->net_iface = NET_IF_GET(Z_DEVICE_DT_DEV_ID(DT_DRV_INST(0)), 0);
-
-	/* Reset the modem */
-	ret = esp_reset(dev);
-
-error:
-	return ret;
+	return 0;
 }
+
+#if defined(CONFIG_WIFI_ESP_AT_NET_IF_NO_AUTO_START)
+static int esp_offload_enable(const struct net_if *iface, bool state)
+{
+	const struct device *dev = net_if_get_device((struct net_if *)iface);
+	struct esp_data *data = dev->data;
+	int ret;
+
+	if (!state) {
+		return 0;
+	}
+
+	if (!data->hw_started) {
+		ret = esp_hw_start(dev);
+		if (ret < 0) {
+			return ret;
+		}
+		data->hw_started = true;
+	} else if (net_if_is_carrier_ok((struct net_if *)iface)) {
+		return 0;
+	}
+
+	/* Do not wait for the device here: its init work needs the interface
+	 * lock that net_if_up() holds. The carrier comes on once it is done.
+	 */
+	return esp_reset_start(dev);
+}
+#endif

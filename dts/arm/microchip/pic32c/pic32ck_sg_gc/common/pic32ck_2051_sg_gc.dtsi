@@ -20,5 +20,53 @@
 		sram0: memory@20000000 {
 			reg = <0x20000000 DT_SIZE_K(512)>;
 		};
+
+		sercom6: sercom@45004000 {
+			compatible = "microchip,sercom-g1";
+			reg = <0x45004000 0x38>;
+			interrupts = <108 0>, <109 0>, <110 0>, <111 0>, <112 0>, <113 0>;
+			interrupt-names = "error", "dre", "txc", "rxc", "rxs", "ctsic";
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_SERCOM6_APB>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_SERCOM6_CORE>;
+			clock-names = "mclk", "gclk";
+			status = "disabled";
+		};
+
+		sercom7: sercom@45008000 {
+			compatible = "microchip,sercom-g1";
+			reg = <0x45008000 0x38>;
+			interrupts = <114 0>, <115 0>, <116 0>, <117 0>, <118 0>, <119 0>;
+			interrupt-names = "error", "dre", "txc", "rxc", "rxs", "ctsic";
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_SERCOM7_APB>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_SERCOM7_CORE>;
+			clock-names = "mclk", "gclk";
+			status = "disabled";
+		};
+
+		tcc6: tcc@4500c000 {
+			compatible = "microchip,tcc-g1";
+			reg = <0x4500c000 0x88>;
+			interrupts = <126 0>, <127 0>, <128 0>;
+			interrupt-names = "cnt", "mc0", "mc1";
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_TCC6_APB>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_TCC6>;
+			clock-names = "mclk", "gclk";
+			max-bit-width = <16>;
+			channels = <2>;
+			status = "disabled";
+		};
+
+		tcc7: tcc@4500e000 {
+			compatible = "microchip,tcc-g1";
+			reg = <0x4500e000 0x88>;
+			interrupts = <129 0>, <130 0>, <131 0>;
+			interrupt-names = "cnt", "mc0", "mc1";
+			clocks = <&mclkperiph CLOCK_MCHP_MCLKPERIPH_ID_TCC7_APB>,
+				 <&gclkperiph CLOCK_MCHP_GCLKPERIPH_ID_TCC7>;
+			clock-names = "mclk", "gclk";
+			max-bit-width = <16>;
+			channels = <2>;
+			status = "disabled";
+		};
 	};
 };

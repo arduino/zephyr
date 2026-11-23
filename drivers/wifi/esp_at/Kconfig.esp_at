@@ -85,6 +85,16 @@ config WIFI_ESP_AT_PASSIVE_MODE
 	  at a rate that the driver can handle. Without this, data might get
 	  lost if the driver cannot empty the device buffer quickly enough.
 
+config WIFI_ESP_AT_NET_IF_NO_AUTO_START
+	bool "Start the device when its interface is brought up"
+	help
+	  Do not open the UART, drive the reset or power pin or reset the
+	  device at boot, and do not bring the interface up automatically:
+	  all of this happens on net_if_up(). Lets the UART and pins serve
+	  other uses when the device is not fitted, and keeps a missing
+	  device from delaying boot. The carrier comes on once the device
+	  has reported ready.
+
 config WIFI_ESP_AT_RESET_TIMEOUT
 	int "Reset timeout"
 	default 3000
