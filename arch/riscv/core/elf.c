@@ -368,6 +368,7 @@ int arch_elf_relocate(struct llext_loader *ldr, struct llext *ext, elf_rela_t *r
 		/* we have checked that this fits with the associated relocation */
 		break;
 	case R_RISCV_HI20:
+	case R_RISCV_TPREL_HI20: /* TLS local exec: S is the offset from tp */
 		jump_target = sym_base_addr + rel->r_addend; /* S + A */
 		modified_operand = UNALIGNED_GET(loc32);
 		imm8 = jump_target;
@@ -384,6 +385,7 @@ int arch_elf_relocate(struct llext_loader *ldr, struct llext *ext, elf_rela_t *r
 		return riscv_relocation_fits(jump_target, RISCV_MAX_JUMP_DISTANCE_U_PLUS_I_TYPE,
 					     reloc_type);
 	case R_RISCV_LO12_I:
+	case R_RISCV_TPREL_LO12_I:
 		modified_operand = UNALIGNED_GET(loc32);
 		jump_target = sym_base_addr + rel->r_addend; /* S + A */
 		imm8 = jump_target;
@@ -394,6 +396,7 @@ int arch_elf_relocate(struct llext_loader *ldr, struct llext *ext, elf_rela_t *r
 		return riscv_relocation_fits(jump_target, RISCV_MAX_JUMP_DISTANCE_U_PLUS_I_TYPE,
 					     reloc_type);
 	case R_RISCV_LO12_S:
+	case R_RISCV_TPREL_LO12_S:
 		modified_operand = UNALIGNED_GET(loc32);
 		imm8 = sym_base_addr + rel->r_addend; /* S + A */
 		/*
@@ -523,6 +526,8 @@ int arch_elf_relocate(struct llext_loader *ldr, struct llext *ext, elf_rela_t *r
 	 * optimization
 	 */
 	case R_RISCV_RELAX:
+	/* only marks the "add rd, rd, tp" of a TPREL sequence */
+	case R_RISCV_TPREL_ADD:
 		break;
 	default:
 		LOG_ERR("Unsupported relocation type: %" PRIu64 " for symbol: %s",
