@@ -17,13 +17,15 @@
 # output the resulting properties to text files. The EDK will then read those
 # text files to get the full set of build properties.
 
+# The rule is a single command, with no shell redirections: a chain of commands is run
+# through "cmd /C" on Windows, which cannot take the ~10 kB of flags of a typical build
+# (8191 characters at most), and would not remove the quotes of echo '...' either.
+# write_build_props.cmake writes the text files and an empty object file in place of the
+# compiler output: nothing uses it (OBJECT library, so there is no archive step).
 unset(CMAKE_C_COMPILER_LAUNCHER)
 unset(CMAKE_DEPFILE_FLAGS_C)
 set(CMAKE_C_COMPILE_OBJECT
-    "${CMAKE_COMMAND} -E echo '<DEFINES>' > ${CMAKE_CURRENT_BINARY_DIR}/c_defs.txt"
-    "${CMAKE_COMMAND} -E echo '<INCLUDES>' > ${CMAKE_CURRENT_BINARY_DIR}/c_incs.txt"
-    "${CMAKE_COMMAND} -E echo '<FLAGS>' > ${CMAKE_CURRENT_BINARY_DIR}/c_flags.txt"
-    "${CMAKE_C_COMPILE_OBJECT}")
+    "${CMAKE_COMMAND} -DOUT_DIR=${CMAKE_CURRENT_BINARY_DIR} -DOBJECT=<OBJECT> -P ${CMAKE_CURRENT_LIST_DIR}/write_build_props.cmake -- DEFINES <DEFINES> INCLUDES <INCLUDES> FLAGS <FLAGS>")
 
-add_library(llext_edk_build_props ${ZEPHYR_BASE}/misc/empty_file.c)
+add_library(llext_edk_build_props OBJECT ${ZEPHYR_BASE}/misc/empty_file.c)
 target_link_libraries(llext_edk_build_props PUBLIC app)
